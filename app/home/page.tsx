@@ -1,16 +1,23 @@
 "use client";
 
-import { useState, useMemo } from "react";
+import { useState, useMemo, useEffect } from "react";
 import { stores, getAllCategories } from "@/data/stores";
 import { StoreCard } from "@/components/marketplace/StoreCard";
 import { CategoryFilter } from "@/components/marketplace/CategoryFilter";
 import { SearchInput } from "@/components/marketplace/SearchInput";
+import { BannerSection } from "@/components/marketplace/BannerSection";
 import { MapPin } from "lucide-react";
 
 export default function MarketplacePage() {
   const [search, setSearch] = useState("");
   const [selectedCategory, setSelectedCategory] = useState<string | null>(null);
+  const [userName, setUserName] = useState<string | null>(null);
   const categories = getAllCategories();
+
+  useEffect(() => {
+    const name = localStorage.getItem("idrink_user_name");
+    setUserName(name);
+  }, []);
 
   const filteredStores = useMemo(() => {
     return stores.filter((store) => {
@@ -29,25 +36,41 @@ export default function MarketplacePage() {
       {/* Header */}
       <div className="mb-8">
         <div className="mb-2 flex items-center gap-2 text-sm text-muted-foreground">
-          <MapPin className="h-4 w-4 text-[#00f5ff]" />
+          <MapPin className="h-4 w-4 text-[#ea1d2c]" />
           <span>Entregando na sua regiao</span>
         </div>
         <h1 className="text-3xl font-bold md:text-4xl">
-          Explore as{" "}
-          <span className="text-[#00f5ff] neon-text">melhores lojas</span>
+          {userName ? (
+            <>
+              Ola, <span className="text-[#ea1d2c]">{userName}</span>
+            </>
+          ) : (
+            <>
+              Explore as{" "}
+              <span className="text-[#ea1d2c]">melhores lojas</span>
+            </>
+          )}
         </h1>
         <p className="mt-2 text-muted-foreground">
           Encontre suas bebidas favoritas nas melhores adegas e distribuidoras.
         </p>
       </div>
 
+      {/* Featured Banners */}
+      <BannerSection stores={stores} />
+
       {/* Search */}
       <div className="mb-6">
         <SearchInput value={search} onChange={setSearch} />
       </div>
 
+      {/* All Stores Section */}
+      <h2 className="mb-6 text-xl font-bold text-foreground md:text-2xl">
+        Todas as Lojas
+      </h2>
+
       {/* Category Filter */}
-      <div className="mb-8">
+      <div className="mb-6">
         <CategoryFilter
           categories={categories}
           selected={selectedCategory}

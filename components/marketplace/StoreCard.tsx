@@ -1,4 +1,5 @@
 import Link from "next/link";
+import Image from "next/image";
 import { Star, Clock } from "lucide-react";
 import type { Store } from "@/data/stores";
 
@@ -10,32 +11,38 @@ export function StoreCard({ store }: StoreCardProps) {
   return (
     <Link
       href={`/store/${store.id}`}
-      className="glass group block overflow-hidden rounded-2xl transition-all hover:neon-glow"
+      className="group block overflow-hidden rounded-2xl border border-slate-700 bg-slate-900/60 backdrop-blur-sm transition-all hover:border-[#ea1d2c]/50 hover:shadow-[0_0_30px_rgba(234,29,44,0.2)]"
     >
       {/* Banner */}
-      <div className="relative h-36 overflow-hidden bg-gradient-to-br from-[#1a1a1a] to-[#2a2a2a]">
-        <div className="absolute inset-0 bg-gradient-to-t from-[#0f0f0f]/80 to-transparent" />
-        {/* Store Initial as visual placeholder */}
-        <div className="flex h-full items-center justify-center text-5xl font-bold text-muted-foreground/20">
-          {store.name.charAt(0)}
-        </div>
+      <div className="relative h-36 overflow-hidden">
+        <Image
+          src={store.banner}
+          alt={store.name}
+          fill
+          className="object-cover transition-transform duration-300 group-hover:scale-105"
+          sizes="(max-width: 640px) 100vw, (max-width: 1024px) 50vw, 33vw"
+        />
+        <div className="absolute inset-0 bg-gradient-to-t from-slate-900 to-transparent" />
       </div>
 
       {/* Content */}
       <div className="relative px-5 pb-5 pt-4">
         {/* Logo circle */}
-        <div className="absolute -top-6 left-5 flex h-12 w-12 items-center justify-center rounded-xl border-2 border-background bg-secondary text-lg font-bold text-[#00f5ff]">
+        <div className="absolute -top-6 left-5 flex h-12 w-12 items-center justify-center rounded-xl border-2 border-slate-900 bg-slate-800 text-lg font-bold text-[#ea1d2c]">
           {store.name.charAt(0)}
         </div>
 
         <div className="mt-6">
-          <h3 className="text-lg font-semibold text-foreground transition-colors group-hover:text-[#00f5ff]">
+          <h3 className="text-lg font-semibold text-foreground transition-colors group-hover:text-[#ea1d2c]">
             {store.name}
           </h3>
+          <p className="mt-0.5 text-sm text-muted-foreground line-clamp-1">
+            {store.tagline}
+          </p>
 
-          <div className="mt-2 flex items-center gap-4">
+          <div className="mt-3 flex items-center gap-4">
             <div className="flex items-center gap-1">
-              <Star className="h-3.5 w-3.5 fill-[#fbbf24] text-[#fbbf24]" />
+              <Star className="h-3.5 w-3.5 fill-yellow-400 text-yellow-400" />
               <span className="text-sm font-medium text-foreground">
                 {store.rating}
               </span>
@@ -50,13 +57,13 @@ export function StoreCard({ store }: StoreCardProps) {
             {store.categories.slice(0, 3).map((cat) => (
               <span
                 key={cat}
-                className="rounded-lg bg-muted px-2 py-0.5 text-xs text-muted-foreground"
+                className="rounded-lg bg-slate-800 px-2 py-0.5 text-xs text-muted-foreground"
               >
                 {cat}
               </span>
             ))}
             {store.categories.length > 3 && (
-              <span className="rounded-lg bg-muted px-2 py-0.5 text-xs text-muted-foreground">
+              <span className="rounded-lg bg-slate-800 px-2 py-0.5 text-xs text-muted-foreground">
                 +{store.categories.length - 3}
               </span>
             )}

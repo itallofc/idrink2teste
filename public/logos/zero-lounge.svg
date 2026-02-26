@@ -1,0 +1,17 @@
+<svg viewBox="0 0 80 80" fill="none" xmlns="http://www.w3.org/2000/svg">
+  <rect x="2" y="2" width="76" height="76" rx="16" fill="#0a0a0a"/>
+  <path d="M25 55l25-4c1-6 1-12 0-18l-25 4" stroke="#ea1d2c" stroke-width="2.5" stroke-linecap="round" fill="none" filter="url(#neon)"/>
+  <circle cx="54" cy="33" r="4" fill="#ea1d2c" filter="url(#neon)"/>
+  <path d="M25 55c0 3-1 7-3 8" stroke="#ea1d2c" stroke-width="2" stroke-linecap="round"/>
+  <circle cx="40" cy="40" r="36" stroke="#ea1d2c" stroke-width="1" stroke-dasharray="4 6" opacity="0.4"/>
+  <text x="40" y="72" font-family="Arial" font-size="8" fill="#ea1d2c" text-anchor="middle" letter-spacing="2">ZERO</text>
+  <defs>
+    <filter id="neon" x="-50%" y="-50%" width="200%" height="200%">
+      <feGaussianBlur stdDeviation="2" result="blur"/>
+      <feMerge>
+        <feMergeNode in="blur"/>
+        <feMergeNode in="SourceGraphic"/>
+      </feMerge>
+    </filter>
+  </defs>
+</svg>

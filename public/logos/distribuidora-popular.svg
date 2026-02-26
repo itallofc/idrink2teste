@@ -1,0 +1,13 @@
+<svg viewBox="0 0 80 80" fill="none" xmlns="http://www.w3.org/2000/svg">
+  <circle cx="40" cy="40" r="38" fill="#1a1a1a" stroke="#ea1d2c" stroke-width="2"/>
+  <path d="M30 25h20l-3 35c0 2-3 5-7 5s-7-3-7-5l-3-35z" fill="url(#dp-gradient)" stroke="#ea1d2c" stroke-width="1.5"/>
+  <path d="M28 25h24" stroke="#ea1d2c" stroke-width="2" stroke-linecap="round"/>
+  <ellipse cx="40" cy="32" rx="8" ry="3" fill="#fff" opacity="0.9"/>
+  <text x="40" y="72" font-family="Arial Black" font-size="12" fill="#fff" text-anchor="middle" font-weight="bold">DP</text>
+  <defs>
+    <linearGradient id="dp-gradient" x1="0%" y1="0%" x2="0%" y2="100%">
+      <stop offset="0%" stop-color="#ff6b6b"/>
+      <stop offset="100%" stop-color="#ea1d2c"/>
+    </linearGradient>
+  </defs>
+</svg>

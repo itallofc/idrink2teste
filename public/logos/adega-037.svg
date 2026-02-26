@@ -1,0 +1,8 @@
+<svg viewBox="0 0 80 80" fill="none" xmlns="http://www.w3.org/2000/svg">
+  <rect x="2" y="2" width="76" height="76" rx="8" fill="#111"/>
+  <text x="40" y="50" font-family="Arial Black" font-size="28" fill="#ea1d2c" text-anchor="middle" font-weight="900">037</text>
+  <path d="M55 20l-2 20c0 1.5-1.5 3-3 3s-3-1.5-3-3l-2-20" stroke="#fff" stroke-width="1.5" fill="none" opacity="0.6"/>
+  <ellipse cx="50" cy="23" rx="4" ry="1.5" fill="#fff" opacity="0.4"/>
+  <line x1="15" y1="60" x2="65" y2="60" stroke="#ea1d2c" stroke-width="2"/>
+  <text x="40" y="72" font-family="Arial" font-size="7" fill="#666" text-anchor="middle" letter-spacing="3">ADEGA</text>
+</svg>

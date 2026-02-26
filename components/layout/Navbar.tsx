@@ -3,8 +3,9 @@
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { Logo } from "./Logo";
-import { User, Store, Menu, X } from "lucide-react";
-import { useState } from "react";
+import { User, Store, Menu, X, ShoppingCart } from "lucide-react";
+import { useState, useEffect } from "react";
+import { useCart } from "@/contexts/CartContext";
 
 const navLinks = [
   { href: "/home", label: "Marketplace" },
@@ -15,6 +16,13 @@ const navLinks = [
 export function Navbar() {
   const pathname = usePathname();
   const [mobileOpen, setMobileOpen] = useState(false);
+  const [userName, setUserName] = useState<string | null>(null);
+  const { totalItems } = useCart();
+
+  useEffect(() => {
+    const name = localStorage.getItem("idrink_user_name");
+    setUserName(name);
+  }, []);
 
   return (
     <nav className="fixed top-0 left-0 right-0 z-50 glass">
@@ -43,19 +51,28 @@ export function Navbar() {
 
         {/* Desktop Right Side */}
         <div className="hidden items-center gap-3 md:flex">
+          {userName && (
+            <span className="text-sm text-muted-foreground">
+              Ola, <span className="font-medium text-foreground">{userName}</span>
+            </span>
+          )}
           <Link
-            href="/usuario"
-            className="flex items-center gap-2 rounded-xl border border-border/50 px-4 py-2 text-sm text-muted-foreground transition-all hover:border-[#00f5ff]/30 hover:text-[#00f5ff]"
+            href="/carrinho"
+            className="relative flex items-center justify-center rounded-xl border border-border/50 p-2.5 text-muted-foreground transition-all hover:border-[#ea1d2c]/30 hover:text-[#ea1d2c]"
           >
-            <User className="h-4 w-4" />
-            <span>Entrar</span>
+            <ShoppingCart className="h-5 w-5" />
+            {totalItems > 0 && (
+              <span className="absolute -right-1.5 -top-1.5 flex h-5 w-5 items-center justify-center rounded-full bg-primary text-xs font-bold text-primary-foreground">
+                {totalItems > 9 ? "9+" : totalItems}
+              </span>
+            )}
           </Link>
           <Link
-            href="/comerciante"
-            className="flex items-center gap-2 rounded-xl bg-primary px-4 py-2 text-sm font-medium text-primary-foreground transition-all hover:opacity-90 red-glow"
+            href="/perfil"
+            className="flex items-center gap-2 rounded-xl border border-border/50 px-4 py-2 text-sm text-muted-foreground transition-all hover:border-[#ea1d2c]/30 hover:text-[#ea1d2c]"
           >
-            <Store className="h-4 w-4" />
-            <span>Seja Parceiro</span>
+            <User className="h-4 w-4" />
+            <span>Perfil</span>
           </Link>
         </div>
 

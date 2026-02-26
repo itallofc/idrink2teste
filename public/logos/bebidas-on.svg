@@ -1,0 +1,16 @@
+<svg viewBox="0 0 80 80" fill="none" xmlns="http://www.w3.org/2000/svg">
+  <rect x="2" y="2" width="76" height="76" rx="12" fill="#0f0f0f"/>
+  <path d="M32 20h6l-1 30c0 2-1 4-2 4s-2-2-2-4l-1-30z" fill="url(#bon-gradient)" stroke="#ea1d2c" stroke-width="1"/>
+  <path d="M30 20h10" stroke="#ea1d2c" stroke-width="2" stroke-linecap="round"/>
+  <path d="M45 30l8-8m0 0l-3 0m3 0l0 3" stroke="#ea1d2c" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"/>
+  <path d="M48 36l6-6" stroke="#ea1d2c" stroke-width="2" stroke-linecap="round" opacity="0.6"/>
+  <text x="40" y="68" font-family="Arial Black" font-size="14" fill="#ea1d2c" text-anchor="middle">ON</text>
+  <circle cx="35" cy="68" r="2" fill="#ea1d2c"/>
+  <circle cx="45" cy="68" r="2" fill="#ea1d2c"/>
+  <defs>
+    <linearGradient id="bon-gradient" x1="0%" y1="0%" x2="0%" y2="100%">
+      <stop offset="0%" stop-color="#ff6b6b"/>
+      <stop offset="100%" stop-color="#ea1d2c"/>
+    </linearGradient>
+  </defs>
+</svg>

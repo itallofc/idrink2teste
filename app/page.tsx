@@ -1,3 +1,7 @@
+"use client";
+
+import { useEffect } from "react";
+import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { ArrowRight, Zap, Clock, Shield, Star } from "lucide-react";
 import { Logo } from "@/components/layout/Logo";
@@ -157,6 +161,16 @@ function CTASection() {
 }
 
 export default function LandingPage() {
+  const router = useRouter();
+
+  useEffect(() => {
+    const storedName = localStorage.getItem("idrink_user_name");
+    const storedRole = localStorage.getItem("idrink_user_role");
+    if (!storedName || !storedRole) {
+      router.push("/onboarding");
+    }
+  }, [router]);
+
   return (
     <>
       <HeroSection />
