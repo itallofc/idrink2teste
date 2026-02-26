@@ -80,10 +80,14 @@ export function BannerSection({ stores }: BannerSectionProps) {
             </div>
 
             {/* Store Logo */}
-            <div className="absolute right-6 top-6 flex h-14 w-14 items-center justify-center rounded-2xl bg-white/10 backdrop-blur-md md:h-16 md:w-16">
-              <span className="text-xl font-bold text-white md:text-2xl">
-                {store.name.charAt(0)}
-              </span>
+            <div className="absolute right-6 top-6 h-14 w-14 overflow-hidden rounded-2xl bg-white/10 backdrop-blur-md md:h-16 md:w-16">
+              <Image
+                src={store.logo}
+                alt={`Logo ${store.name}`}
+                width={64}
+                height={64}
+                className="h-full w-full object-cover"
+              />
             </div>
           </Link>
         ))}

@@ -27,9 +27,15 @@ export function StoreCard({ store }: StoreCardProps) {
 
       {/* Content */}
       <div className="relative px-5 pb-5 pt-4">
-        {/* Logo circle */}
-        <div className="absolute -top-6 left-5 flex h-12 w-12 items-center justify-center rounded-xl border-2 border-slate-900 bg-slate-800 text-lg font-bold text-[#ea1d2c]">
-          {store.name.charAt(0)}
+        {/* Logo */}
+        <div className="absolute -top-6 left-5 h-12 w-12 overflow-hidden rounded-xl border-2 border-slate-900 bg-slate-800">
+          <Image
+            src={store.logo}
+            alt={`Logo ${store.name}`}
+            width={48}
+            height={48}
+            className="h-full w-full object-cover"
+          />
         </div>
 
         <div className="mt-6">

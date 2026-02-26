@@ -35,8 +35,14 @@ export function StoreHeader({ store }: StoreHeaderProps) {
         <div className="absolute bottom-0 left-0 right-0 p-6 md:p-8">
           <div className="flex items-end gap-4">
             {/* Logo */}
-            <div className="flex h-16 w-16 flex-shrink-0 items-center justify-center rounded-2xl border-2 border-slate-800 bg-slate-900 text-2xl font-bold text-[#ea1d2c] md:h-20 md:w-20">
-              {store.name.charAt(0)}
+            <div className="h-16 w-16 flex-shrink-0 overflow-hidden rounded-2xl border-2 border-slate-800 bg-slate-900 md:h-20 md:w-20">
+              <Image
+                src={store.logo}
+                alt={`Logo ${store.name}`}
+                width={80}
+                height={80}
+                className="h-full w-full object-cover"
+              />
             </div>
 
             <div className="flex-1">
