@@ -4,6 +4,8 @@ import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { useCart } from "@/contexts/CartContext";
+import { useAuth } from "@/hooks/useAuth";
+import { createOrder } from "@/hooks/useOrders";
 import { formatCurrency } from "@/utils/formatCurrency";
 import {
   ArrowLeft,
@@ -13,27 +15,27 @@ import {
   CheckCircle2,
   MapPin,
   User,
+  Loader2,
 } from "lucide-react";
 
-type PaymentMethod = "pix" | "card" | "cash";
+type PaymentMethod = "pix" | "credit_card" | "debit_card" | "cash";
 
 export default function CheckoutPage() {
   const router = useRouter();
-  const { items, totalPrice, clearCart } = useCart();
-  const [userName, setUserName] = useState("");
+  const { items, totalPrice, clearCart, storeId } = useCart();
+  const { user, profile, loading: authLoading } = useAuth();
   const [fullName, setFullName] = useState("");
   const [address, setAddress] = useState("");
   const [paymentMethod, setPaymentMethod] = useState<PaymentMethod>("pix");
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [isSuccess, setIsSuccess] = useState(false);
+  const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
-    const storedName = localStorage.getItem("idrink_user_name");
-    if (storedName) {
-      setUserName(storedName);
-      setFullName(storedName);
+    if (profile?.full_name) {
+      setFullName(profile.full_name);
     }
-  }, []);
+  }, [profile]);
 
   useEffect(() => {
     if (items.length === 0 && !isSuccess) {
@@ -41,42 +43,49 @@ export default function CheckoutPage() {
     }
   }, [items, router, isSuccess]);
 
+  // Redirect to login if not authenticated
+  useEffect(() => {
+    if (!authLoading && !user) {
+      router.push("/login?redirect=/checkout");
+    }
+  }, [authLoading, user, router]);
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!fullName.trim() || !address.trim()) return;
 
     setIsSubmitting(true);
+    setError(null);
 
-    // Simulate order processing
-    await new Promise((resolve) => setTimeout(resolve, 1500));
+    try {
+      await createOrder({
+        store_id: storeId || items[0]?.product.storeId,
+        items: items.map((item) => ({
+          product_id: item.product.id,
+          product_name: item.product.name,
+          quantity: item.quantity,
+          unit_price: item.product.price,
+        })),
+        delivery_address: address,
+        payment_method: paymentMethod,
+      });
 
-    // Save order to localStorage
-    const order = {
-      id: `ORD-${Date.now()}`,
-      items: items.map((item) => ({
-        name: item.product.name,
-        quantity: item.quantity,
-        price: item.product.price,
-      })),
-      total: totalPrice,
-      address,
-      paymentMethod,
-      status: "preparing",
-      createdAt: new Date().toISOString(),
-    };
-
-    const existingOrders = JSON.parse(
-      localStorage.getItem("idrink_orders") || "[]"
-    );
-    localStorage.setItem(
-      "idrink_orders",
-      JSON.stringify([order, ...existingOrders])
-    );
-
-    clearCart();
-    setIsSuccess(true);
-    setIsSubmitting(false);
+      clearCart();
+      setIsSuccess(true);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Erro ao criar pedido");
+    } finally {
+      setIsSubmitting(false);
+    }
   };
+
+  if (authLoading) {
+    return (
+      <div className="flex min-h-[60vh] items-center justify-center">
+        <Loader2 className="h-8 w-8 animate-spin text-primary" />
+      </div>
+    );
+  }
 
   if (isSuccess) {
     return (
@@ -96,13 +105,13 @@ export default function CheckoutPage() {
         <div className="mt-8 flex flex-col gap-3 sm:flex-row">
           <Link
             href="/pedidos"
-            className="inline-flex items-center justify-center gap-2 rounded-2xl bg-primary px-6 py-3 font-semibold text-primary-foreground transition-all hover:opacity-90 red-glow"
+            className="inline-flex items-center justify-center gap-2 rounded-2xl bg-primary px-6 py-3 font-semibold text-primary-foreground transition-all hover:opacity-90"
           >
             Ver Meus Pedidos
           </Link>
           <Link
             href="/home"
-            className="inline-flex items-center justify-center gap-2 rounded-2xl border border-border/50 px-6 py-3 font-medium text-muted-foreground transition-all hover:border-[#ea1d2c]/30 hover:text-[#ea1d2c]"
+            className="inline-flex items-center justify-center gap-2 rounded-2xl border border-border px-6 py-3 font-medium text-muted-foreground transition-all hover:border-primary/30 hover:text-primary"
           >
             Continuar Comprando
           </Link>
@@ -117,7 +126,7 @@ export default function CheckoutPage() {
       <div className="mb-8">
         <Link
           href="/carrinho"
-          className="mb-4 inline-flex items-center gap-2 text-sm text-muted-foreground hover:text-[#ea1d2c]"
+          className="mb-4 inline-flex items-center gap-2 text-sm text-muted-foreground hover:text-primary"
         >
           <ArrowLeft className="h-4 w-4" />
           Voltar ao carrinho
@@ -127,12 +136,18 @@ export default function CheckoutPage() {
         </h1>
       </div>
 
+      {error && (
+        <div className="mb-6 rounded-xl bg-red-500/10 border border-red-500/20 p-4 text-center text-sm text-red-400">
+          {error}
+        </div>
+      )}
+
       <form onSubmit={handleSubmit} className="space-y-6">
         {/* Delivery Info */}
-        <div className="glass rounded-2xl p-6">
+        <div className="rounded-2xl border border-border bg-card p-6">
           <div className="mb-4 flex items-center gap-3">
-            <div className="rounded-xl bg-[#ea1d2c]/10 p-2">
-              <MapPin className="h-5 w-5 text-[#ea1d2c]" />
+            <div className="rounded-xl bg-primary/10 p-2">
+              <MapPin className="h-5 w-5 text-primary" />
             </div>
             <h2 className="text-lg font-semibold text-foreground">
               Informacoes de Entrega
@@ -155,7 +170,7 @@ export default function CheckoutPage() {
                   value={fullName}
                   onChange={(e) => setFullName(e.target.value)}
                   placeholder="Seu nome completo"
-                  className="w-full rounded-xl border border-border/50 bg-secondary/50 py-3 pl-11 pr-4 text-foreground placeholder:text-muted-foreground focus:border-[#ea1d2c]/50 focus:outline-none focus:ring-2 focus:ring-[#ea1d2c]/20"
+                  className="w-full rounded-xl border border-border bg-secondary/50 py-3 pl-11 pr-4 text-foreground placeholder:text-muted-foreground focus:border-primary/50 focus:outline-none focus:ring-2 focus:ring-primary/20"
                   required
                 />
               </div>
@@ -176,7 +191,7 @@ export default function CheckoutPage() {
                   onChange={(e) => setAddress(e.target.value)}
                   placeholder="Rua, numero, bairro, cidade..."
                   rows={3}
-                  className="w-full resize-none rounded-xl border border-border/50 bg-secondary/50 py-3 pl-11 pr-4 text-foreground placeholder:text-muted-foreground focus:border-[#ea1d2c]/50 focus:outline-none focus:ring-2 focus:ring-[#ea1d2c]/20"
+                  className="w-full resize-none rounded-xl border border-border bg-secondary/50 py-3 pl-11 pr-4 text-foreground placeholder:text-muted-foreground focus:border-primary/50 focus:outline-none focus:ring-2 focus:ring-primary/20"
                   required
                 />
               </div>
@@ -185,37 +200,37 @@ export default function CheckoutPage() {
         </div>
 
         {/* Payment Method */}
-        <div className="glass rounded-2xl p-6">
+        <div className="rounded-2xl border border-border bg-card p-6">
           <div className="mb-4 flex items-center gap-3">
-            <div className="rounded-xl bg-[#ea1d2c]/10 p-2">
-              <CreditCard className="h-5 w-5 text-[#ea1d2c]" />
+            <div className="rounded-xl bg-primary/10 p-2">
+              <CreditCard className="h-5 w-5 text-primary" />
             </div>
             <h2 className="text-lg font-semibold text-foreground">
               Forma de Pagamento
             </h2>
           </div>
 
-          <div className="grid gap-3 sm:grid-cols-3">
+          <div className="grid gap-3 sm:grid-cols-4">
             <button
               type="button"
               onClick={() => setPaymentMethod("pix")}
               className={`flex flex-col items-center gap-2 rounded-xl border p-4 transition-all ${
                 paymentMethod === "pix"
-                  ? "border-[#ea1d2c] bg-[#ea1d2c]/10"
-                  : "border-border/50 hover:border-[#ea1d2c]/30"
+                  ? "border-primary bg-primary/10"
+                  : "border-border hover:border-primary/30"
               }`}
             >
               <QrCode
                 className={`h-6 w-6 ${
                   paymentMethod === "pix"
-                    ? "text-[#ea1d2c]"
+                    ? "text-primary"
                     : "text-muted-foreground"
                 }`}
               />
               <span
                 className={`text-sm font-medium ${
                   paymentMethod === "pix"
-                    ? "text-[#ea1d2c]"
+                    ? "text-primary"
                     : "text-muted-foreground"
                 }`}
               >
@@ -225,28 +240,55 @@ export default function CheckoutPage() {
 
             <button
               type="button"
-              onClick={() => setPaymentMethod("card")}
+              onClick={() => setPaymentMethod("credit_card")}
               className={`flex flex-col items-center gap-2 rounded-xl border p-4 transition-all ${
-                paymentMethod === "card"
-                  ? "border-[#ea1d2c] bg-[#ea1d2c]/10"
-                  : "border-border/50 hover:border-[#ea1d2c]/30"
+                paymentMethod === "credit_card"
+                  ? "border-primary bg-primary/10"
+                  : "border-border hover:border-primary/30"
               }`}
             >
               <CreditCard
                 className={`h-6 w-6 ${
-                  paymentMethod === "card"
-                    ? "text-[#ea1d2c]"
+                  paymentMethod === "credit_card"
+                    ? "text-primary"
                     : "text-muted-foreground"
                 }`}
               />
               <span
                 className={`text-sm font-medium ${
-                  paymentMethod === "card"
-                    ? "text-[#ea1d2c]"
+                  paymentMethod === "credit_card"
+                    ? "text-primary"
                     : "text-muted-foreground"
                 }`}
               >
-                Cartao
+                Credito
+              </span>
+            </button>
+
+            <button
+              type="button"
+              onClick={() => setPaymentMethod("debit_card")}
+              className={`flex flex-col items-center gap-2 rounded-xl border p-4 transition-all ${
+                paymentMethod === "debit_card"
+                  ? "border-primary bg-primary/10"
+                  : "border-border hover:border-primary/30"
+              }`}
+            >
+              <CreditCard
+                className={`h-6 w-6 ${
+                  paymentMethod === "debit_card"
+                    ? "text-primary"
+                    : "text-muted-foreground"
+                }`}
+              />
+              <span
+                className={`text-sm font-medium ${
+                  paymentMethod === "debit_card"
+                    ? "text-primary"
+                    : "text-muted-foreground"
+                }`}
+              >
+                Debito
               </span>
             </button>
 
@@ -255,21 +297,21 @@ export default function CheckoutPage() {
               onClick={() => setPaymentMethod("cash")}
               className={`flex flex-col items-center gap-2 rounded-xl border p-4 transition-all ${
                 paymentMethod === "cash"
-                  ? "border-[#ea1d2c] bg-[#ea1d2c]/10"
-                  : "border-border/50 hover:border-[#ea1d2c]/30"
+                  ? "border-primary bg-primary/10"
+                  : "border-border hover:border-primary/30"
               }`}
             >
               <Banknote
                 className={`h-6 w-6 ${
                   paymentMethod === "cash"
-                    ? "text-[#ea1d2c]"
+                    ? "text-primary"
                     : "text-muted-foreground"
                 }`}
               />
               <span
                 className={`text-sm font-medium ${
                   paymentMethod === "cash"
-                    ? "text-[#ea1d2c]"
+                    ? "text-primary"
                     : "text-muted-foreground"
                 }`}
               >
@@ -280,7 +322,7 @@ export default function CheckoutPage() {
         </div>
 
         {/* Order Summary */}
-        <div className="glass rounded-2xl p-6">
+        <div className="rounded-2xl border border-border bg-card p-6">
           <h2 className="mb-4 text-lg font-semibold text-foreground">
             Resumo do Pedido
           </h2>
@@ -301,7 +343,7 @@ export default function CheckoutPage() {
             ))}
           </div>
 
-          <div className="mt-4 space-y-2 border-t border-border/50 pt-4">
+          <div className="mt-4 space-y-2 border-t border-border pt-4">
             <div className="flex justify-between text-muted-foreground">
               <span>Subtotal</span>
               <span>{formatCurrency(totalPrice)}</span>
@@ -312,7 +354,7 @@ export default function CheckoutPage() {
             </div>
             <div className="flex justify-between text-lg font-bold">
               <span className="text-foreground">Total</span>
-              <span className="text-[#ea1d2c]">{formatCurrency(totalPrice)}</span>
+              <span className="text-primary">{formatCurrency(totalPrice)}</span>
             </div>
           </div>
         </div>
@@ -321,11 +363,11 @@ export default function CheckoutPage() {
         <button
           type="submit"
           disabled={isSubmitting || !fullName.trim() || !address.trim()}
-          className="flex w-full items-center justify-center gap-2 rounded-2xl bg-primary py-4 font-semibold text-primary-foreground transition-all hover:opacity-90 disabled:cursor-not-allowed disabled:opacity-50 red-glow"
+          className="flex w-full items-center justify-center gap-2 rounded-2xl bg-primary py-4 font-semibold text-primary-foreground transition-all hover:opacity-90 disabled:cursor-not-allowed disabled:opacity-50"
         >
           {isSubmitting ? (
             <>
-              <div className="h-5 w-5 animate-spin rounded-full border-2 border-white/30 border-t-white" />
+              <Loader2 className="h-5 w-5 animate-spin" />
               Processando...
             </>
           ) : (

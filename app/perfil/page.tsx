@@ -3,7 +3,9 @@
 import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
+import { useAuth } from "@/hooks/useAuth";
 import { useCart } from "@/contexts/CartContext";
+import { createClient } from "@/lib/supabase/client";
 import {
   User,
   Store,
@@ -12,67 +14,199 @@ import {
   Package,
   Trash2,
   ChevronRight,
+  Save,
+  Loader2,
+  Check,
+  Phone,
+  Mail,
 } from "lucide-react";
 
 export default function ProfilePage() {
   const router = useRouter();
+  const { user, profile, loading, signOut } = useAuth();
   const { clearCart, totalItems } = useCart();
-  const [userName, setUserName] = useState<string | null>(null);
-  const [userRole, setUserRole] = useState<string | null>(null);
+  const [fullName, setFullName] = useState("");
+  const [phone, setPhone] = useState("");
+  const [saving, setSaving] = useState(false);
+  const [saved, setSaved] = useState(false);
+  const [isEditing, setIsEditing] = useState(false);
 
   useEffect(() => {
-    const name = localStorage.getItem("idrink_user_name");
-    const role = localStorage.getItem("idrink_user_role");
-    if (!name || !role) {
-      router.push("/onboarding");
-      return;
+    if (profile) {
+      setFullName(profile.full_name || "");
+      setPhone(profile.phone || "");
     }
-    setUserName(name);
-    setUserRole(role);
-  }, [router]);
+  }, [profile]);
 
-  const handleLogout = () => {
-    localStorage.removeItem("idrink_user_name");
-    localStorage.removeItem("idrink_user_role");
-    localStorage.removeItem("idrink_cart");
-    localStorage.removeItem("idrink_orders");
-    router.push("/onboarding");
+  useEffect(() => {
+    if (!loading && !user) {
+      router.push("/login?redirect=/perfil");
+    }
+  }, [loading, user, router]);
+
+  const handleSave = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!user) return;
+
+    setSaving(true);
+    const supabase = createClient();
+
+    const { error } = await supabase
+      .from("profiles")
+      .update({
+        full_name: fullName,
+        phone: phone,
+        updated_at: new Date().toISOString(),
+      })
+      .eq("id", user.id);
+
+    setSaving(false);
+
+    if (!error) {
+      setSaved(true);
+      setIsEditing(false);
+      setTimeout(() => setSaved(false), 2000);
+    }
+  };
+
+  const handleSignOut = async () => {
+    clearCart();
+    await signOut();
+    router.push("/");
   };
 
   const handleClearCart = () => {
     clearCart();
   };
 
-  if (!userName || !userRole) {
+  if (loading) {
     return (
       <div className="flex min-h-[60vh] items-center justify-center">
-        <div className="h-8 w-8 animate-spin rounded-full border-2 border-muted border-t-primary" />
+        <Loader2 className="h-8 w-8 animate-spin text-primary" />
       </div>
     );
   }
 
+  if (!user) {
+    return null;
+  }
+
+  const isMerchant = profile?.role === "merchant";
+
   return (
     <div className="mx-auto max-w-lg px-4 py-8 lg:px-8">
       {/* Profile Header */}
-      <div className="glass mb-6 rounded-2xl p-6 text-center">
-        <div className="mx-auto mb-4 flex h-20 w-20 items-center justify-center rounded-full bg-[#ea1d2c]/10">
-          {userRole === "merchant" ? (
-            <Store className="h-10 w-10 text-[#ea1d2c]" />
+      <div className="mb-6 rounded-2xl border border-border bg-card p-6 text-center">
+        <div className="mx-auto mb-4 flex h-20 w-20 items-center justify-center rounded-full bg-primary/10">
+          {isMerchant ? (
+            <Store className="h-10 w-10 text-primary" />
           ) : (
-            <User className="h-10 w-10 text-[#ea1d2c]" />
+            <User className="h-10 w-10 text-primary" />
           )}
         </div>
-        <h1 className="text-2xl font-bold text-foreground">{userName}</h1>
-        <p className="mt-1 text-muted-foreground">
-          {userRole === "merchant" ? "Comerciante" : "Usuario"}
-        </p>
+        <h1 className="text-2xl font-bold text-foreground">
+          {profile?.full_name || "Usuario"}
+        </h1>
+        <p className="mt-1 text-sm text-muted-foreground">{user.email}</p>
+        <span className="mt-2 inline-block rounded-full bg-primary/10 px-3 py-1 text-xs font-medium text-primary capitalize">
+          {isMerchant ? "Comerciante" : "Cliente"}
+        </span>
       </div>
+
+      {/* Edit Profile Form */}
+      {isEditing ? (
+        <form onSubmit={handleSave} className="mb-6 rounded-2xl border border-border bg-card p-6">
+          <h2 className="mb-4 text-lg font-semibold text-foreground">
+            Editar Perfil
+          </h2>
+          <div className="space-y-4">
+            <div>
+              <label htmlFor="fullName" className="mb-1.5 block text-sm font-medium text-foreground">
+                Nome Completo
+              </label>
+              <div className="relative">
+                <User className="absolute left-4 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+                <input
+                  id="fullName"
+                  type="text"
+                  value={fullName}
+                  onChange={(e) => setFullName(e.target.value)}
+                  placeholder="Seu nome completo"
+                  className="w-full rounded-xl border border-border bg-secondary/50 py-3 pl-11 pr-4 text-foreground placeholder:text-muted-foreground focus:border-primary/50 focus:outline-none focus:ring-2 focus:ring-primary/20"
+                />
+              </div>
+            </div>
+            <div>
+              <label htmlFor="phone" className="mb-1.5 block text-sm font-medium text-foreground">
+                Telefone
+              </label>
+              <div className="relative">
+                <Phone className="absolute left-4 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+                <input
+                  id="phone"
+                  type="tel"
+                  value={phone}
+                  onChange={(e) => setPhone(e.target.value)}
+                  placeholder="(00) 00000-0000"
+                  className="w-full rounded-xl border border-border bg-secondary/50 py-3 pl-11 pr-4 text-foreground placeholder:text-muted-foreground focus:border-primary/50 focus:outline-none focus:ring-2 focus:ring-primary/20"
+                />
+              </div>
+            </div>
+          </div>
+          <div className="mt-4 flex gap-3">
+            <button
+              type="button"
+              onClick={() => setIsEditing(false)}
+              className="flex-1 rounded-xl border border-border py-3 font-medium text-muted-foreground transition-all hover:bg-secondary"
+            >
+              Cancelar
+            </button>
+            <button
+              type="submit"
+              disabled={saving}
+              className="flex flex-1 items-center justify-center gap-2 rounded-xl bg-primary py-3 font-semibold text-primary-foreground transition-all hover:opacity-90 disabled:opacity-50"
+            >
+              {saving ? (
+                <Loader2 className="h-5 w-5 animate-spin" />
+              ) : saved ? (
+                <>
+                  <Check className="h-5 w-5" />
+                  Salvo!
+                </>
+              ) : (
+                <>
+                  <Save className="h-5 w-5" />
+                  Salvar
+                </>
+              )}
+            </button>
+          </div>
+        </form>
+      ) : (
+        <button
+          onClick={() => setIsEditing(true)}
+          className="mb-6 flex w-full items-center justify-between rounded-2xl border border-border bg-card p-4 transition-all hover:border-primary/30"
+        >
+          <div className="flex items-center gap-3">
+            <div className="rounded-lg bg-muted p-2">
+              <User className="h-5 w-5 text-muted-foreground" />
+            </div>
+            <div className="text-left">
+              <p className="font-medium text-foreground">Editar Perfil</p>
+              <p className="text-sm text-muted-foreground">
+                Alterar nome e telefone
+              </p>
+            </div>
+          </div>
+          <ChevronRight className="h-5 w-5 text-muted-foreground" />
+        </button>
+      )}
 
       {/* Menu Items */}
       <div className="space-y-3">
         <Link
           href="/carrinho"
-          className="glass flex items-center justify-between rounded-xl p-4 transition-all hover:border-[#ea1d2c]/30"
+          className="flex items-center justify-between rounded-xl border border-border bg-card p-4 transition-all hover:border-primary/30"
         >
           <div className="flex items-center gap-3">
             <div className="rounded-lg bg-muted p-2">
@@ -90,7 +224,7 @@ export default function ProfilePage() {
 
         <Link
           href="/pedidos"
-          className="glass flex items-center justify-between rounded-xl p-4 transition-all hover:border-[#ea1d2c]/30"
+          className="flex items-center justify-between rounded-xl border border-border bg-card p-4 transition-all hover:border-primary/30"
         >
           <div className="flex items-center gap-3">
             <div className="rounded-lg bg-muted p-2">
@@ -108,7 +242,7 @@ export default function ProfilePage() {
 
         <button
           onClick={handleClearCart}
-          className="glass flex w-full items-center justify-between rounded-xl p-4 transition-all hover:border-destructive/30"
+          className="flex w-full items-center justify-between rounded-xl border border-border bg-card p-4 transition-all hover:border-destructive/30"
         >
           <div className="flex items-center gap-3">
             <div className="rounded-lg bg-destructive/10 p-2">
@@ -124,8 +258,8 @@ export default function ProfilePage() {
         </button>
 
         <button
-          onClick={handleLogout}
-          className="glass flex w-full items-center justify-between rounded-xl p-4 transition-all hover:border-destructive/30"
+          onClick={handleSignOut}
+          className="flex w-full items-center justify-between rounded-xl border border-border bg-card p-4 transition-all hover:border-destructive/30"
         >
           <div className="flex items-center gap-3">
             <div className="rounded-lg bg-destructive/10 p-2">
@@ -142,27 +276,27 @@ export default function ProfilePage() {
       </div>
 
       {/* Merchant Section */}
-      {userRole === "merchant" && (
+      {isMerchant && (
         <div className="mt-8">
           <h2 className="mb-4 text-lg font-semibold text-foreground">
             Area do Comerciante
           </h2>
-          <div className="glass rounded-2xl p-6 text-center">
-            <Store className="mx-auto mb-4 h-12 w-12 text-[#ea1d2c]" />
+          <Link
+            href="/dashboard"
+            className="block rounded-2xl border border-border bg-card p-6 text-center transition-all hover:border-primary/30"
+          >
+            <Store className="mx-auto mb-4 h-12 w-12 text-primary" />
             <h3 className="text-lg font-semibold text-foreground">
               Painel do Comerciante
             </h3>
             <p className="mt-2 text-sm text-muted-foreground">
-              Em breve voce podera gerenciar sua loja, produtos e pedidos por
-              aqui.
+              Gerencie sua loja, produtos e pedidos
             </p>
-            <button
-              disabled
-              className="mt-4 w-full rounded-xl bg-muted py-3 text-sm font-medium text-muted-foreground"
-            >
-              Em breve
-            </button>
-          </div>
+            <span className="mt-4 inline-flex items-center gap-2 text-sm font-medium text-primary">
+              Acessar painel
+              <ChevronRight className="h-4 w-4" />
+            </span>
+          </Link>
         </div>
       )}
     </div>

@@ -1,23 +1,22 @@
 "use client";
 
-import { useState, useMemo, useEffect } from "react";
-import { stores, getAllCategories } from "@/data/stores";
+import { useState, useMemo } from "react";
+import { useStores, getAllCategories } from "@/hooks/useStores";
+import { useAuth } from "@/hooks/useAuth";
 import { StoreCard } from "@/components/marketplace/StoreCard";
 import { CategoryFilter } from "@/components/marketplace/CategoryFilter";
 import { SearchInput } from "@/components/marketplace/SearchInput";
 import { BannerSection } from "@/components/marketplace/BannerSection";
-import { MapPin } from "lucide-react";
+import { MapPin, Loader2 } from "lucide-react";
 
 export default function MarketplacePage() {
   const [search, setSearch] = useState("");
   const [selectedCategory, setSelectedCategory] = useState<string | null>(null);
-  const [userName, setUserName] = useState<string | null>(null);
-  const categories = getAllCategories();
+  
+  const { stores, isLoading } = useStores();
+  const { profile } = useAuth();
 
-  useEffect(() => {
-    const name = localStorage.getItem("idrink_user_name");
-    setUserName(name);
-  }, []);
+  const categories = useMemo(() => getAllCategories(stores), [stores]);
 
   const filteredStores = useMemo(() => {
     return stores.filter((store) => {
@@ -26,10 +25,31 @@ export default function MarketplacePage() {
         .includes(search.toLowerCase());
       const matchesCategory =
         selectedCategory === null ||
-        store.categories.includes(selectedCategory);
-      return matchesSearch && matchesCategory;
+        store.categories?.some((cat) => cat.name === selectedCategory);
+      return matchesSearch && matchesCategory && store.is_active;
     });
-  }, [search, selectedCategory]);
+  }, [stores, search, selectedCategory]);
+
+  // Transform store data for components
+  const storesForDisplay = filteredStores.map((store) => ({
+    id: store.slug,
+    name: store.name,
+    tagline: store.tagline || store.description || "",
+    rating: store.rating,
+    deliveryTime: store.delivery_time,
+    categories: store.categories?.map((c) => c.name) || [],
+    banner: store.banner_url || "/banners/default-banner.png",
+    logo: store.logo_url || "/logos/default-logo.jpeg",
+    description: store.description || "",
+  }));
+
+  if (isLoading) {
+    return (
+      <div className="flex min-h-[60vh] items-center justify-center">
+        <Loader2 className="h-8 w-8 animate-spin text-primary" />
+      </div>
+    );
+  }
 
   return (
     <div className="mx-auto max-w-7xl px-4 py-8 lg:px-8">
@@ -40,9 +60,9 @@ export default function MarketplacePage() {
           <span>Entregando na sua regiao</span>
         </div>
         <h1 className="text-3xl font-bold md:text-4xl">
-          {userName ? (
+          {profile?.full_name ? (
             <>
-              Ola, <span className="text-[#ea1d2c]">{userName}</span>
+              Ola, <span className="text-[#ea1d2c]">{profile.full_name.split(" ")[0]}</span>
             </>
           ) : (
             <>
@@ -57,7 +77,9 @@ export default function MarketplacePage() {
       </div>
 
       {/* Featured Banners */}
-      <BannerSection stores={stores} />
+      {storesForDisplay.length > 0 && (
+        <BannerSection stores={storesForDisplay.slice(0, 5)} />
+      )}
 
       {/* Search */}
       <div className="mb-6">
@@ -70,18 +92,20 @@ export default function MarketplacePage() {
       </h2>
 
       {/* Category Filter */}
-      <div className="mb-6">
-        <CategoryFilter
-          categories={categories}
-          selected={selectedCategory}
-          onSelect={setSelectedCategory}
-        />
-      </div>
+      {categories.length > 0 && (
+        <div className="mb-6">
+          <CategoryFilter
+            categories={categories}
+            selected={selectedCategory}
+            onSelect={setSelectedCategory}
+          />
+        </div>
+      )}
 
       {/* Store Grid */}
-      {filteredStores.length > 0 ? (
+      {storesForDisplay.length > 0 ? (
         <div className="grid gap-6 sm:grid-cols-2 lg:grid-cols-3">
-          {filteredStores.map((store) => (
+          {storesForDisplay.map((store) => (
             <StoreCard key={store.id} store={store} />
           ))}
         </div>
@@ -90,15 +114,17 @@ export default function MarketplacePage() {
           <p className="text-lg text-muted-foreground">
             Nenhuma loja encontrada.
           </p>
-          <button
-            onClick={() => {
-              setSearch("");
-              setSelectedCategory(null);
-            }}
-            className="mt-4 text-sm text-[#00f5ff] hover:underline"
-          >
-            Limpar filtros
-          </button>
+          {(search || selectedCategory) && (
+            <button
+              onClick={() => {
+                setSearch("");
+                setSelectedCategory(null);
+              }}
+              className="mt-4 text-sm text-primary hover:underline"
+            >
+              Limpar filtros
+            </button>
+          )}
         </div>
       )}
     </div>
