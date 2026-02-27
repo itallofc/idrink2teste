@@ -1,6 +1,7 @@
 export interface Store {
   id: string;
   name: string;
+  tagline: string;
   rating: number;
   deliveryTime: string;
   categories: string[];
@@ -13,55 +14,60 @@ export const stores: Store[] = [
   {
     id: "distribuidora-popular",
     name: "Distribuidora Popular",
-    rating: 4.7,
-    deliveryTime: "25-35 min",
+    tagline: "Sua noite comeca aqui.",
+    rating: 4.8,
+    deliveryTime: "30-45 min",
     categories: ["Cerveja", "Refrigerante", "Agua", "Energetico"],
-    banner: "/banners/store-1.jpg",
-    logo: "/logos/store-1.jpg",
+    banner: "/banners/distribuidora-popular-banner.png",
+    logo: "/logos/distribuidora-popular-logo.jpeg",
     description:
       "A maior variedade de bebidas com os melhores precos da regiao. Entrega rapida e atendimento de qualidade.",
   },
   {
     id: "adega-do-moco",
     name: "Adega do Moco",
+    tagline: "Selecao premium, entrega express.",
     rating: 4.9,
-    deliveryTime: "20-30 min",
+    deliveryTime: "40-60 min",
     categories: ["Whisky", "Vodka", "Gin", "Cerveja", "Skol Beats"],
-    banner: "/banners/store-2.jpg",
-    logo: "/logos/store-2.jpg",
+    banner: "/banners/adega-do-moco-banner.png",
+    logo: "/logos/adega-do-moco-logo.jpeg",
     description:
       "Especialistas em destilados premium e cervejas artesanais. A melhor adega da cidade.",
   },
   {
     id: "zero-lounge-tabacaria",
     name: "Zero Lounge Tabacaria",
-    rating: 4.5,
-    deliveryTime: "30-45 min",
+    tagline: "Experiencia refinada.",
+    rating: 4.7,
+    deliveryTime: "35-50 min",
     categories: ["Energetico", "Agua", "Refrigerante"],
-    banner: "/banners/store-3.jpg",
-    logo: "/logos/store-3.jpg",
+    banner: "/banners/zero-lounge-tabacaria-banner.png",
+    logo: "/logos/zero-lounge-tabacaria-logo.jpeg",
     description:
       "Bebidas para acompanhar seu momento de descanso. Selecao premium de energeticos e mais.",
   },
   {
     id: "adega-037",
     name: "Adega 037",
+    tagline: "O sabor da comemoracao.",
     rating: 4.8,
-    deliveryTime: "15-25 min",
+    deliveryTime: "25-40 min",
     categories: ["Whisky", "Vodka", "Gin", "Cerveja", "Skol Beats"],
-    banner: "/banners/store-4.jpg",
-    logo: "/logos/store-4.jpg",
+    banner: "/banners/adega-037-banner.png",
+    logo: "/logos/adega-037-logo.jpeg",
     description:
       "Destilados importados, cervejas geladas e entregas ultra-rapidas. A adega que voce merece.",
   },
   {
     id: "bebidas-on",
     name: "Bebidas ON",
-    rating: 4.6,
+    tagline: "Conectando voce ao melhor.",
+    rating: 4.9,
     deliveryTime: "20-35 min",
     categories: ["Cerveja", "Refrigerante", "Agua", "Energetico", "Vodka"],
-    banner: "/banners/store-5.jpg",
-    logo: "/logos/store-5.jpg",
+    banner: "/banners/bebidas-on-banner.png",
+    logo: "/logos/bebidas-on-logo.jpeg",
     description:
       "Tudo ON para sua festa! Maior variedade, menor preco e entrega garantida.",
   },
