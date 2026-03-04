@@ -1,102 +1,23 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
+import { useRouter } from "next/navigation";
+import { createClient } from "@/lib/supabase/client";
+import type { User } from "@supabase/supabase-js";
 import {
   Store,
-  LogIn,
   TrendingUp,
   Package,
   DollarSign,
   Users,
   BarChart3,
   Clock,
+  LogOut,
+  Loader2,
 } from "lucide-react";
 
-function MerchantLoginForm({
-  onLogin,
-}: {
-  onLogin: (name: string) => void;
-}) {
-  const [email, setEmail] = useState("");
-  const [password, setPassword] = useState("");
-
-  function handleSubmit(e: React.FormEvent) {
-    e.preventDefault();
-    if (email && password) {
-      onLogin(email.split("@")[0]);
-    }
-  }
-
-  return (
-    <div className="mx-auto max-w-md">
-      <div className="glass rounded-2xl p-8">
-        <div className="mb-6 flex flex-col items-center text-center">
-          <div className="mb-4 flex h-16 w-16 items-center justify-center rounded-2xl bg-primary/15">
-            <Store className="h-8 w-8 text-primary" />
-          </div>
-          <h2 className="text-2xl font-bold text-foreground">
-            Painel do Comerciante
-          </h2>
-          <p className="mt-2 text-sm text-muted-foreground">
-            Acesse o painel de gerenciamento da sua loja
-          </p>
-        </div>
-
-        <form onSubmit={handleSubmit} className="flex flex-col gap-4">
-          <div>
-            <label
-              htmlFor="merchant-email"
-              className="mb-1.5 block text-sm font-medium text-foreground"
-            >
-              E-mail do Comerciante
-            </label>
-            <input
-              id="merchant-email"
-              type="email"
-              value={email}
-              onChange={(e) => setEmail(e.target.value)}
-              placeholder="comerciante@loja.com"
-              required
-              className="w-full rounded-xl border border-border/50 bg-input px-4 py-3 text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-primary/30"
-            />
-          </div>
-          <div>
-            <label
-              htmlFor="merchant-password"
-              className="mb-1.5 block text-sm font-medium text-foreground"
-            >
-              Senha
-            </label>
-            <input
-              id="merchant-password"
-              type="password"
-              value={password}
-              onChange={(e) => setPassword(e.target.value)}
-              placeholder="Sua senha"
-              required
-              className="w-full rounded-xl border border-border/50 bg-input px-4 py-3 text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-primary/30"
-            />
-          </div>
-          <button
-            type="submit"
-            className="mt-2 rounded-xl bg-primary py-3 font-semibold text-primary-foreground transition-all hover:opacity-90 red-glow"
-          >
-            Acessar Painel
-          </button>
-        </form>
-
-        <p className="mt-6 text-center text-sm text-muted-foreground">
-          Quer ser parceiro?{" "}
-          <span className="cursor-pointer text-primary hover:underline">
-            Cadastre sua loja
-          </span>
-        </p>
-      </div>
-    </div>
-  );
-}
-
-function MerchantDashboard({ merchantName }: { merchantName: string }) {
+function MerchantDashboard({ user, merchantName }: { user: User | null; merchantName: string }) {
+  const router = useRouter();
   const stats = [
     {
       icon: DollarSign,
@@ -173,21 +94,41 @@ function MerchantDashboard({ merchantName }: { merchantName: string }) {
     { name: "Absolut Vodka 1L", sold: 18, revenue: "R$ 1.618,20" },
   ];
 
+  const handleLogout = async () => {
+    const supabase = createClient();
+    await supabase.auth.signOut();
+    localStorage.removeItem("idrink_user_name");
+    localStorage.removeItem("idrink_user_role");
+    router.push("/onboarding");
+  };
+
   return (
     <div>
       {/* Header */}
-      <div className="mb-8 flex items-center gap-4">
-        <div className="flex h-16 w-16 items-center justify-center rounded-2xl bg-primary/15 text-2xl font-bold text-primary">
-          {merchantName.charAt(0).toUpperCase()}
+      <div className="mb-8 flex items-center justify-between">
+        <div className="flex items-center gap-4">
+          <div className="flex h-16 w-16 items-center justify-center rounded-2xl bg-primary/15 text-2xl font-bold text-primary">
+            {merchantName.charAt(0).toUpperCase()}
+          </div>
+          <div>
+            <h1 className="text-2xl font-bold text-foreground">
+              Ola, {merchantName}!
+            </h1>
+            <p className="text-muted-foreground">
+              Painel da sua loja no iDrink.
+            </p>
+            {user && (
+              <p className="text-sm text-muted-foreground">{user.email}</p>
+            )}
+          </div>
         </div>
-        <div>
-          <h1 className="text-2xl font-bold text-foreground">
-            Ola, {merchantName}!
-          </h1>
-          <p className="text-muted-foreground">
-            Painel da sua loja no iDrink.
-          </p>
-        </div>
+        <button
+          onClick={handleLogout}
+          className="flex items-center gap-2 rounded-xl bg-destructive/10 px-4 py-2 text-sm font-medium text-destructive transition-all hover:bg-destructive/20"
+        >
+          <LogOut className="h-4 w-4" />
+          Sair
+        </button>
       </div>
 
       {/* Stats Grid */}
@@ -295,7 +236,56 @@ function MerchantDashboard({ merchantName }: { merchantName: string }) {
 }
 
 export default function ComerciantePage() {
+  const router = useRouter();
+  const [user, setUser] = useState<User | null>(null);
   const [merchantName, setMerchantName] = useState<string | null>(null);
+  const [isLoading, setIsLoading] = useState(true);
+
+  useEffect(() => {
+    async function checkAuth() {
+      const supabase = createClient();
+      const { data: { user: authUser } } = await supabase.auth.getUser();
+
+      if (authUser) {
+        // Check if user is a merchant
+        const role = authUser.user_metadata?.role;
+        if (role === "merchant") {
+          setUser(authUser);
+          setMerchantName(authUser.user_metadata?.full_name || authUser.email?.split("@")[0] || "Comerciante");
+        } else {
+          // Not a merchant, redirect to home
+          router.push("/home");
+          return;
+        }
+      } else {
+        // Check localStorage for legacy users
+        const role = localStorage.getItem("idrink_user_role");
+        const name = localStorage.getItem("idrink_user_name");
+        
+        if (role === "merchant" && name) {
+          setMerchantName(name);
+        } else {
+          // Not authenticated, redirect to onboarding
+          router.push("/onboarding");
+          return;
+        }
+      }
+      setIsLoading(false);
+    }
+    checkAuth();
+  }, [router]);
+
+  if (isLoading) {
+    return (
+      <div className="flex min-h-[60vh] items-center justify-center">
+        <Loader2 className="h-8 w-8 animate-spin text-primary" />
+      </div>
+    );
+  }
+
+  if (!merchantName) {
+    return null;
+  }
 
   return (
     <div className="mx-auto max-w-6xl px-4 py-8 lg:px-8">
@@ -306,11 +296,7 @@ export default function ComerciantePage() {
         </h1>
       </div>
 
-      {merchantName ? (
-        <MerchantDashboard merchantName={merchantName} />
-      ) : (
-        <MerchantLoginForm onLogin={setMerchantName} />
-      )}
+      <MerchantDashboard user={user} merchantName={merchantName} />
     </div>
   );
 }

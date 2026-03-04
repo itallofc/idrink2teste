@@ -4,7 +4,8 @@ import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import { motion, AnimatePresence } from "framer-motion";
 import { AnimatedLogo } from "@/components/onboarding/AnimatedLogo";
-import { User, Store, ArrowRight, Sparkles } from "lucide-react";
+import { createClient } from "@/lib/supabase/client";
+import { User, Store, ArrowRight, Sparkles, ArrowLeft, Eye, EyeOff, Loader2 } from "lucide-react";
 
 type UserRole = "user" | "merchant";
 
@@ -13,18 +14,53 @@ export default function OnboardingPage() {
   const [step, setStep] = useState(1);
   const [name, setName] = useState("");
   const [isLoading, setIsLoading] = useState(false);
+  const [isCheckingAuth, setIsCheckingAuth] = useState(true);
 
-  // Check if user already completed onboarding
+  // Merchant registration fields
+  const [merchantEmail, setMerchantEmail] = useState("");
+  const [merchantPassword, setMerchantPassword] = useState("");
+  const [merchantConfirmPassword, setMerchantConfirmPassword] = useState("");
+  const [storeName, setStoreName] = useState("");
+  const [phoneNumber, setPhoneNumber] = useState("");
+  const [showPassword, setShowPassword] = useState(false);
+  const [showConfirmPassword, setShowConfirmPassword] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  // Check if user already completed onboarding or is logged in
   useEffect(() => {
-    const storedName = localStorage.getItem("idrink_user_name");
-    const storedRole = localStorage.getItem("idrink_user_role");
-    if (storedName && storedRole) {
-      if (storedRole === "merchant") {
-        router.push("/perfil");
-      } else {
-        router.push("/home");
+    async function checkAuth() {
+      const supabase = createClient();
+      const { data: { user } } = await supabase.auth.getUser();
+      
+      if (user) {
+        // Check if user is a merchant
+        const { data: profile } = await supabase
+          .from("profiles")
+          .select("role")
+          .eq("id", user.id)
+          .single();
+        
+        if (profile?.role === "merchant") {
+          router.push("/comerciante");
+        } else {
+          router.push("/home");
+        }
+        return;
       }
+
+      const storedName = localStorage.getItem("idrink_user_name");
+      const storedRole = localStorage.getItem("idrink_user_role");
+      if (storedName && storedRole) {
+        if (storedRole === "merchant") {
+          router.push("/comerciante");
+        } else {
+          router.push("/home");
+        }
+        return;
+      }
+      setIsCheckingAuth(false);
     }
+    checkAuth();
   }, [router]);
 
   const handleContinue = () => {
@@ -35,17 +71,78 @@ export default function OnboardingPage() {
   };
 
   const handleSelectRole = (role: UserRole) => {
-    setIsLoading(true);
-    localStorage.setItem("idrink_user_role", role);
-
-    setTimeout(() => {
-      if (role === "merchant") {
-        router.push("/perfil");
-      } else {
+    if (role === "merchant") {
+      setStep(3); // Go to merchant registration
+    } else {
+      setIsLoading(true);
+      localStorage.setItem("idrink_user_role", role);
+      setTimeout(() => {
         router.push("/home");
-      }
-    }, 500);
+      }, 500);
+    }
   };
+
+  const handleMerchantSignUp = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setError(null);
+    setIsLoading(true);
+
+    // Validations
+    if (merchantPassword !== merchantConfirmPassword) {
+      setError("As senhas nao coincidem");
+      setIsLoading(false);
+      return;
+    }
+
+    if (merchantPassword.length < 6) {
+      setError("A senha deve ter pelo menos 6 caracteres");
+      setIsLoading(false);
+      return;
+    }
+
+    try {
+      const supabase = createClient();
+      
+      const { data, error: signUpError } = await supabase.auth.signUp({
+        email: merchantEmail,
+        password: merchantPassword,
+        options: {
+          emailRedirectTo:
+            process.env.NEXT_PUBLIC_DEV_SUPABASE_REDIRECT_URL ||
+            `${window.location.origin}/comerciante`,
+          data: {
+            full_name: name,
+            store_name: storeName,
+            phone: phoneNumber,
+            role: "merchant",
+          },
+        },
+      });
+
+      if (signUpError) throw signUpError;
+
+      if (data.user) {
+        // Save to localStorage as backup
+        localStorage.setItem("idrink_user_name", name.trim());
+        localStorage.setItem("idrink_user_role", "merchant");
+        
+        // Move to success step
+        setStep(4);
+      }
+    } catch (err: unknown) {
+      setError(err instanceof Error ? err.message : "Erro ao criar conta");
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  if (isCheckingAuth) {
+    return (
+      <div className="fixed inset-0 flex items-center justify-center bg-gradient-to-b from-slate-950 via-slate-900 to-slate-950">
+        <div className="h-8 w-8 animate-spin rounded-full border-2 border-muted border-t-primary" />
+      </div>
+    );
+  }
 
   return (
     <div className="fixed inset-0 flex items-center justify-center overflow-hidden bg-gradient-to-b from-slate-950 via-slate-900 to-slate-950">
@@ -194,6 +291,221 @@ export default function OnboardingPage() {
                 <div className="absolute bottom-0 left-0 h-1 w-0 bg-gradient-to-r from-[#ea1d2c] to-[#ff6b6b] transition-all duration-300 group-hover:w-full" />
               </button>
             </motion.div>
+          </motion.div>
+        )}
+
+        {step === 3 && (
+          <motion.div
+            key="step3"
+            initial={{ opacity: 0, x: 50 }}
+            animate={{ opacity: 1, x: 0 }}
+            exit={{ opacity: 0 }}
+            transition={{ duration: 0.4 }}
+            className="relative z-10 flex w-full max-w-md flex-col items-center px-6"
+          >
+            <button
+              onClick={() => setStep(2)}
+              className="mb-6 flex items-center gap-2 self-start text-muted-foreground transition-colors hover:text-foreground"
+            >
+              <ArrowLeft className="h-4 w-4" />
+              Voltar
+            </button>
+
+            <div className="glass w-full rounded-2xl p-6 sm:p-8">
+              <div className="mb-6 flex flex-col items-center text-center">
+                <div className="mb-4 flex h-16 w-16 items-center justify-center rounded-2xl bg-[#ea1d2c]/10">
+                  <Store className="h-8 w-8 text-[#ea1d2c]" />
+                </div>
+                <h2 className="text-2xl font-bold text-foreground">
+                  Cadastro de Comerciante
+                </h2>
+                <p className="mt-2 text-sm text-muted-foreground">
+                  Crie sua conta para comecar a vender
+                </p>
+              </div>
+
+              <form onSubmit={handleMerchantSignUp} className="flex flex-col gap-4">
+                <div>
+                  <label
+                    htmlFor="store-name"
+                    className="mb-1.5 block text-sm font-medium text-foreground"
+                  >
+                    Nome da Loja
+                  </label>
+                  <input
+                    id="store-name"
+                    type="text"
+                    value={storeName}
+                    onChange={(e) => setStoreName(e.target.value)}
+                    placeholder="Ex: Adega do Joao"
+                    required
+                    className="w-full rounded-xl border border-border/50 bg-input px-4 py-3 text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-[#ea1d2c]/30"
+                  />
+                </div>
+
+                <div>
+                  <label
+                    htmlFor="phone"
+                    className="mb-1.5 block text-sm font-medium text-foreground"
+                  >
+                    Telefone/WhatsApp
+                  </label>
+                  <input
+                    id="phone"
+                    type="tel"
+                    value={phoneNumber}
+                    onChange={(e) => setPhoneNumber(e.target.value)}
+                    placeholder="(00) 00000-0000"
+                    required
+                    className="w-full rounded-xl border border-border/50 bg-input px-4 py-3 text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-[#ea1d2c]/30"
+                  />
+                </div>
+
+                <div>
+                  <label
+                    htmlFor="merchant-email"
+                    className="mb-1.5 block text-sm font-medium text-foreground"
+                  >
+                    E-mail
+                  </label>
+                  <input
+                    id="merchant-email"
+                    type="email"
+                    value={merchantEmail}
+                    onChange={(e) => setMerchantEmail(e.target.value)}
+                    placeholder="seu@email.com"
+                    required
+                    className="w-full rounded-xl border border-border/50 bg-input px-4 py-3 text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-[#ea1d2c]/30"
+                  />
+                </div>
+
+                <div>
+                  <label
+                    htmlFor="merchant-password"
+                    className="mb-1.5 block text-sm font-medium text-foreground"
+                  >
+                    Senha
+                  </label>
+                  <div className="relative">
+                    <input
+                      id="merchant-password"
+                      type={showPassword ? "text" : "password"}
+                      value={merchantPassword}
+                      onChange={(e) => setMerchantPassword(e.target.value)}
+                      placeholder="Minimo 6 caracteres"
+                      required
+                      className="w-full rounded-xl border border-border/50 bg-input px-4 py-3 pr-12 text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-[#ea1d2c]/30"
+                    />
+                    <button
+                      type="button"
+                      onClick={() => setShowPassword(!showPassword)}
+                      className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground"
+                    >
+                      {showPassword ? <EyeOff className="h-5 w-5" /> : <Eye className="h-5 w-5" />}
+                    </button>
+                  </div>
+                </div>
+
+                <div>
+                  <label
+                    htmlFor="merchant-confirm-password"
+                    className="mb-1.5 block text-sm font-medium text-foreground"
+                  >
+                    Confirmar Senha
+                  </label>
+                  <div className="relative">
+                    <input
+                      id="merchant-confirm-password"
+                      type={showConfirmPassword ? "text" : "password"}
+                      value={merchantConfirmPassword}
+                      onChange={(e) => setMerchantConfirmPassword(e.target.value)}
+                      placeholder="Repita sua senha"
+                      required
+                      className="w-full rounded-xl border border-border/50 bg-input px-4 py-3 pr-12 text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-[#ea1d2c]/30"
+                    />
+                    <button
+                      type="button"
+                      onClick={() => setShowConfirmPassword(!showConfirmPassword)}
+                      className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground"
+                    >
+                      {showConfirmPassword ? <EyeOff className="h-5 w-5" /> : <Eye className="h-5 w-5" />}
+                    </button>
+                  </div>
+                </div>
+
+                {error && (
+                  <div className="rounded-lg bg-destructive/10 px-4 py-3 text-sm text-destructive">
+                    {error}
+                  </div>
+                )}
+
+                <button
+                  type="submit"
+                  disabled={isLoading}
+                  className="mt-2 flex items-center justify-center gap-2 rounded-xl bg-primary py-3 font-semibold text-primary-foreground transition-all hover:opacity-90 disabled:opacity-50 red-glow"
+                >
+                  {isLoading ? (
+                    <>
+                      <Loader2 className="h-5 w-5 animate-spin" />
+                      Criando conta...
+                    </>
+                  ) : (
+                    "Criar Conta"
+                  )}
+                </button>
+              </form>
+
+              <p className="mt-6 text-center text-sm text-muted-foreground">
+                Ja tem conta?{" "}
+                <button
+                  onClick={() => router.push("/perfil")}
+                  className="text-[#ea1d2c] hover:underline"
+                >
+                  Faca login
+                </button>
+              </p>
+            </div>
+          </motion.div>
+        )}
+
+        {step === 4 && (
+          <motion.div
+            key="step4"
+            initial={{ opacity: 0, scale: 0.95 }}
+            animate={{ opacity: 1, scale: 1 }}
+            transition={{ duration: 0.4 }}
+            className="relative z-10 flex w-full max-w-md flex-col items-center px-6 text-center"
+          >
+            <div className="glass rounded-2xl p-8">
+              <div className="mx-auto mb-6 flex h-20 w-20 items-center justify-center rounded-full bg-green-500/10">
+                <svg
+                  className="h-10 w-10 text-green-500"
+                  fill="none"
+                  stroke="currentColor"
+                  viewBox="0 0 24 24"
+                >
+                  <path
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                    strokeWidth={2}
+                    d="M5 13l4 4L19 7"
+                  />
+                </svg>
+              </div>
+              <h2 className="text-2xl font-bold text-foreground">
+                Conta Criada!
+              </h2>
+              <p className="mt-3 text-muted-foreground">
+                Enviamos um e-mail de confirmacao para <strong className="text-foreground">{merchantEmail}</strong>. 
+                Verifique sua caixa de entrada para ativar sua conta.
+              </p>
+              <button
+                onClick={() => router.push("/perfil")}
+                className="mt-6 w-full rounded-xl bg-primary py-3 font-semibold text-primary-foreground transition-all hover:opacity-90 red-glow"
+              >
+                Ir para Login
+              </button>
+            </div>
           </motion.div>
         )}
       </AnimatePresence>
