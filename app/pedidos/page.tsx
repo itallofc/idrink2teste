@@ -2,6 +2,8 @@
 
 import { useState, useEffect } from "react";
 import Link from "next/link";
+import { useAuth } from "@/contexts/AuthContext";
+import { createClient } from "@/lib/supabase/client";
 import { formatCurrency } from "@/utils/formatCurrency";
 import {
   Package,
@@ -9,37 +11,70 @@ import {
   CheckCircle2,
   Truck,
   ArrowRight,
-  ShoppingBag,
+  Loader2,
+  AlertCircle,
+  XCircle,
 } from "lucide-react";
 
 interface OrderItem {
-  name: string;
+  id: string;
+  product_name: string;
   quantity: number;
-  price: number;
+  product_price: number;
+  subtotal: number;
 }
 
 interface Order {
   id: string;
-  items: OrderItem[];
+  order_number: string;
+  status: string;
+  total: number;
+  created_at: string;
+  payment_method: string;
+  delivery_address: {
+    full_name?: string;
+    address?: string;
+  } | null;
+  order_items?: OrderItem[];
+  stores?: {
+    name: string;
+  } | null;
+}
+
+interface LocalOrder {
+  id: string;
+  items: { name: string; quantity: number; price: number }[];
   total: number;
   address: string;
   paymentMethod: string;
-  status: "preparing" | "delivering" | "delivered";
+  status: string;
   createdAt: string;
 }
 
 const statusConfig = {
-  preparing: {
-    label: "Em preparo",
+  pending: {
+    label: "Pendente",
     icon: Clock,
     color: "text-yellow-500",
     bgColor: "bg-yellow-500/10",
   },
+  confirmed: {
+    label: "Confirmado",
+    icon: CheckCircle2,
+    color: "text-blue-500",
+    bgColor: "bg-blue-500/10",
+  },
+  preparing: {
+    label: "Em preparo",
+    icon: Clock,
+    color: "text-orange-500",
+    bgColor: "bg-orange-500/10",
+  },
   delivering: {
     label: "A caminho",
     icon: Truck,
-    color: "text-blue-500",
-    bgColor: "bg-blue-500/10",
+    color: "text-cyan-500",
+    bgColor: "bg-cyan-500/10",
   },
   delivered: {
     label: "Entregue",
@@ -47,28 +82,59 @@ const statusConfig = {
     color: "text-green-500",
     bgColor: "bg-green-500/10",
   },
+  cancelled: {
+    label: "Cancelado",
+    icon: XCircle,
+    color: "text-destructive",
+    bgColor: "bg-destructive/10",
+  },
 };
 
 export default function OrdersPage() {
+  const { user, isLoading: authLoading } = useAuth();
   const [orders, setOrders] = useState<Order[]>([]);
+  const [localOrders, setLocalOrders] = useState<LocalOrder[]>([]);
+  const [isLoading, setIsLoading] = useState(true);
+
+  const supabase = createClient();
 
   useEffect(() => {
+    loadOrders();
+  }, [user, authLoading]);
+
+  const loadOrders = async () => {
+    setIsLoading(true);
+
+    // Load from localStorage for all users
     const storedOrders = localStorage.getItem("idrink_orders");
     if (storedOrders) {
       try {
         const parsed = JSON.parse(storedOrders);
-        // Simulate order status changes for demo
-        const updatedOrders = parsed.map((order: Order, index: number) => {
-          if (index === 0) return { ...order, status: "preparing" };
-          if (index === 1) return { ...order, status: "delivering" };
-          return { ...order, status: "delivered" };
-        });
-        setOrders(updatedOrders);
+        setLocalOrders(parsed);
       } catch (e) {
         console.error("Failed to parse orders", e);
       }
     }
-  }, []);
+
+    // If user is logged in, also load from database
+    if (user) {
+      const { data, error } = await supabase
+        .from("orders")
+        .select(`
+          *,
+          order_items (*),
+          stores:store_id (name)
+        `)
+        .eq("customer_id", user.id)
+        .order("created_at", { ascending: false });
+
+      if (data && !error) {
+        setOrders(data);
+      }
+    }
+
+    setIsLoading(false);
+  };
 
   const formatDate = (dateString: string) => {
     const date = new Date(dateString);
@@ -80,7 +146,45 @@ export default function OrdersPage() {
     });
   };
 
-  if (orders.length === 0) {
+  // Merge and deduplicate orders
+  const allOrders = [
+    ...orders.map(o => ({
+      id: o.id,
+      orderNumber: o.order_number,
+      status: o.status,
+      total: o.total,
+      createdAt: o.created_at,
+      items: o.order_items?.map(i => ({
+        name: i.product_name,
+        quantity: i.quantity,
+        price: i.product_price,
+      })) || [],
+      storeName: o.stores?.name,
+      source: "database" as const,
+    })),
+    ...localOrders
+      .filter(lo => !orders.some(o => o.order_number === lo.id))
+      .map(lo => ({
+        id: lo.id,
+        orderNumber: lo.id,
+        status: lo.status,
+        total: lo.total,
+        createdAt: lo.createdAt,
+        items: lo.items,
+        storeName: undefined,
+        source: "local" as const,
+      })),
+  ].sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
+
+  if (authLoading || isLoading) {
+    return (
+      <div className="flex min-h-[60vh] items-center justify-center">
+        <Loader2 className="h-8 w-8 animate-spin text-primary" />
+      </div>
+    );
+  }
+
+  if (allOrders.length === 0) {
     return (
       <div className="mx-auto flex min-h-[60vh] max-w-7xl flex-col items-center justify-center px-4 py-16 text-center lg:px-8">
         <div className="mb-6 rounded-full bg-muted p-6">
@@ -90,7 +194,7 @@ export default function OrdersPage() {
           Nenhum pedido ainda
         </h1>
         <p className="mt-2 text-muted-foreground">
-          Seus pedidos aparecerão aqui depois que você fizer sua primeira compra
+          Seus pedidos aparecerao aqui depois que voce fizer sua primeira compra
         </p>
         <Link
           href="/home"
@@ -115,8 +219,8 @@ export default function OrdersPage() {
       </div>
 
       <div className="space-y-4">
-        {orders.map((order) => {
-          const status = statusConfig[order.status];
+        {allOrders.map((order) => {
+          const status = statusConfig[order.status as keyof typeof statusConfig] || statusConfig.pending;
           const StatusIcon = status.icon;
 
           return (
@@ -124,10 +228,15 @@ export default function OrdersPage() {
               {/* Header */}
               <div className="flex items-center justify-between border-b border-border/50 px-5 py-4">
                 <div>
-                  <p className="text-sm text-muted-foreground">{order.id}</p>
-                  <p className="text-xs text-muted-foreground/60">
+                  <p className="font-medium text-foreground">{order.orderNumber}</p>
+                  <p className="text-xs text-muted-foreground">
                     {formatDate(order.createdAt)}
                   </p>
+                  {order.storeName && (
+                    <p className="mt-1 text-sm text-muted-foreground">
+                      {order.storeName}
+                    </p>
+                  )}
                 </div>
                 <div
                   className={`flex items-center gap-2 rounded-full px-3 py-1.5 ${status.bgColor}`}

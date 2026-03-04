@@ -4,8 +4,7 @@ import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { useCart } from "@/contexts/CartContext";
-import { createClient } from "@/lib/supabase/client";
-import type { User } from "@supabase/supabase-js";
+import { useAuth } from "@/contexts/AuthContext";
 import {
   User as UserIcon,
   Store,
@@ -19,10 +18,12 @@ import {
   EyeOff,
   Loader2,
   ArrowRight,
+  MapPin,
 } from "lucide-react";
 
-function LoginForm({ onLoginSuccess }: { onLoginSuccess: () => void }) {
+function LoginForm({ onLoginSuccess }: { onLoginSuccess: (role: string) => void }) {
   const router = useRouter();
+  const { signIn } = useAuth();
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [showPassword, setShowPassword] = useState(false);
@@ -35,30 +36,25 @@ function LoginForm({ onLoginSuccess }: { onLoginSuccess: () => void }) {
     setIsLoading(true);
 
     try {
-      const supabase = createClient();
-      const { data, error: signInError } = await supabase.auth.signInWithPassword({
-        email,
-        password,
-      });
+      const { error: signInError } = await signIn(email, password);
 
       if (signInError) throw signInError;
 
-      if (data.user) {
-        // Check user role
-        const role = data.user.user_metadata?.role;
-        
-        // Save to localStorage as backup
-        localStorage.setItem("idrink_user_name", data.user.user_metadata?.full_name || email.split("@")[0]);
-        localStorage.setItem("idrink_user_role", role || "user");
-
-        if (role === "merchant") {
-          router.push("/comerciante");
-        } else {
-          onLoginSuccess();
-        }
-      }
+      // Get user info after successful login - the AuthContext will update
+      // and trigger the useEffect in the parent component
+      onLoginSuccess("checking");
     } catch (err: unknown) {
-      setError(err instanceof Error ? err.message : "Erro ao fazer login");
+      if (err instanceof Error) {
+        if (err.message.includes("Invalid login credentials")) {
+          setError("Email ou senha incorretos");
+        } else if (err.message.includes("Email not confirmed")) {
+          setError("Por favor, confirme seu email antes de fazer login");
+        } else {
+          setError(err.message);
+        }
+      } else {
+        setError("Erro ao fazer login");
+      }
     } finally {
       setIsLoading(false);
     }
@@ -166,15 +162,17 @@ function LoginForm({ onLoginSuccess }: { onLoginSuccess: () => void }) {
   );
 }
 
-function ProfileContent({ user, userName, userRole }: { user: User | null; userName: string; userRole: string }) {
+function ProfileContent() {
   const router = useRouter();
+  const { user, profile, signOut, isMerchant } = useAuth();
   const { clearCart, totalItems } = useCart();
 
+  const userName = profile?.full_name || user?.user_metadata?.full_name || localStorage.getItem("idrink_user_name") || "Usuario";
+  const userEmail = profile?.email || user?.email;
+  const userRole = profile?.role || user?.user_metadata?.role || localStorage.getItem("idrink_user_role") || "user";
+
   const handleLogout = async () => {
-    if (user) {
-      const supabase = createClient();
-      await supabase.auth.signOut();
-    }
+    await signOut();
     localStorage.removeItem("idrink_user_name");
     localStorage.removeItem("idrink_user_role");
     localStorage.removeItem("idrink_cart");
@@ -191,7 +189,7 @@ function ProfileContent({ user, userName, userRole }: { user: User | null; userN
       {/* Profile Header */}
       <div className="glass mb-6 rounded-2xl p-6 text-center">
         <div className="mx-auto mb-4 flex h-20 w-20 items-center justify-center rounded-full bg-[#ea1d2c]/10">
-          {userRole === "merchant" ? (
+          {isMerchant ? (
             <Store className="h-10 w-10 text-[#ea1d2c]" />
           ) : (
             <UserIcon className="h-10 w-10 text-[#ea1d2c]" />
@@ -199,67 +197,71 @@ function ProfileContent({ user, userName, userRole }: { user: User | null; userN
         </div>
         <h1 className="text-2xl font-bold text-foreground">{userName}</h1>
         <p className="mt-1 text-muted-foreground">
-          {userRole === "merchant" ? "Comerciante" : "Usuario"}
+          {isMerchant ? "Comerciante" : "Usuario"}
         </p>
-        {user && (
-          <p className="mt-1 text-sm text-muted-foreground">{user.email}</p>
+        {userEmail && (
+          <p className="mt-1 text-sm text-muted-foreground">{userEmail}</p>
         )}
       </div>
 
       {/* Menu Items */}
       <div className="space-y-3">
-        <Link
-          href="/carrinho"
-          className="glass flex items-center justify-between rounded-xl p-4 transition-all hover:border-[#ea1d2c]/30"
-        >
-          <div className="flex items-center gap-3">
-            <div className="rounded-lg bg-muted p-2">
-              <ShoppingCart className="h-5 w-5 text-muted-foreground" />
-            </div>
-            <div>
-              <p className="font-medium text-foreground">Meu Carrinho</p>
-              <p className="text-sm text-muted-foreground">
-                {totalItems} {totalItems === 1 ? "item" : "itens"}
-              </p>
-            </div>
-          </div>
-          <ChevronRight className="h-5 w-5 text-muted-foreground" />
-        </Link>
+        {!isMerchant && (
+          <>
+            <Link
+              href="/carrinho"
+              className="glass flex items-center justify-between rounded-xl p-4 transition-all hover:border-[#ea1d2c]/30"
+            >
+              <div className="flex items-center gap-3">
+                <div className="rounded-lg bg-muted p-2">
+                  <ShoppingCart className="h-5 w-5 text-muted-foreground" />
+                </div>
+                <div>
+                  <p className="font-medium text-foreground">Meu Carrinho</p>
+                  <p className="text-sm text-muted-foreground">
+                    {totalItems} {totalItems === 1 ? "item" : "itens"}
+                  </p>
+                </div>
+              </div>
+              <ChevronRight className="h-5 w-5 text-muted-foreground" />
+            </Link>
 
-        <Link
-          href="/pedidos"
-          className="glass flex items-center justify-between rounded-xl p-4 transition-all hover:border-[#ea1d2c]/30"
-        >
-          <div className="flex items-center gap-3">
-            <div className="rounded-lg bg-muted p-2">
-              <Package className="h-5 w-5 text-muted-foreground" />
-            </div>
-            <div>
-              <p className="font-medium text-foreground">Meus Pedidos</p>
-              <p className="text-sm text-muted-foreground">
-                Acompanhe suas entregas
-              </p>
-            </div>
-          </div>
-          <ChevronRight className="h-5 w-5 text-muted-foreground" />
-        </Link>
+            <Link
+              href="/pedidos"
+              className="glass flex items-center justify-between rounded-xl p-4 transition-all hover:border-[#ea1d2c]/30"
+            >
+              <div className="flex items-center gap-3">
+                <div className="rounded-lg bg-muted p-2">
+                  <Package className="h-5 w-5 text-muted-foreground" />
+                </div>
+                <div>
+                  <p className="font-medium text-foreground">Meus Pedidos</p>
+                  <p className="text-sm text-muted-foreground">
+                    Acompanhe suas entregas
+                  </p>
+                </div>
+              </div>
+              <ChevronRight className="h-5 w-5 text-muted-foreground" />
+            </Link>
 
-        <button
-          onClick={handleClearCart}
-          className="glass flex w-full items-center justify-between rounded-xl p-4 transition-all hover:border-destructive/30"
-        >
-          <div className="flex items-center gap-3">
-            <div className="rounded-lg bg-destructive/10 p-2">
-              <Trash2 className="h-5 w-5 text-destructive" />
-            </div>
-            <div className="text-left">
-              <p className="font-medium text-foreground">Limpar Carrinho</p>
-              <p className="text-sm text-muted-foreground">
-                Remover todos os itens
-              </p>
-            </div>
-          </div>
-        </button>
+            <button
+              onClick={handleClearCart}
+              className="glass flex w-full items-center justify-between rounded-xl p-4 transition-all hover:border-destructive/30"
+            >
+              <div className="flex items-center gap-3">
+                <div className="rounded-lg bg-destructive/10 p-2">
+                  <Trash2 className="h-5 w-5 text-destructive" />
+                </div>
+                <div className="text-left">
+                  <p className="font-medium text-foreground">Limpar Carrinho</p>
+                  <p className="text-sm text-muted-foreground">
+                    Remover todos os itens
+                  </p>
+                </div>
+              </div>
+            </button>
+          </>
+        )}
 
         <button
           onClick={handleLogout}
@@ -280,7 +282,7 @@ function ProfileContent({ user, userName, userRole }: { user: User | null; userN
       </div>
 
       {/* Merchant Section */}
-      {userRole === "merchant" && (
+      {isMerchant && (
         <div className="mt-8">
           <h2 className="mb-4 text-lg font-semibold text-foreground">
             Area do Comerciante
@@ -309,46 +311,45 @@ function ProfileContent({ user, userName, userRole }: { user: User | null; userN
 
 export default function ProfilePage() {
   const router = useRouter();
-  const [user, setUser] = useState<User | null>(null);
-  const [userName, setUserName] = useState<string | null>(null);
-  const [userRole, setUserRole] = useState<string | null>(null);
-  const [isLoading, setIsLoading] = useState(true);
+  const { user, profile, isLoading, isMerchant } = useAuth();
   const [isAuthenticated, setIsAuthenticated] = useState(false);
+  const [checkingAuth, setCheckingAuth] = useState(true);
 
   useEffect(() => {
-    async function checkAuth() {
-      const supabase = createClient();
-      const { data: { user: authUser } } = await supabase.auth.getUser();
+    if (isLoading) return;
 
-      if (authUser) {
-        setUser(authUser);
-        setUserName(authUser.user_metadata?.full_name || authUser.email?.split("@")[0] || "Usuario");
-        setUserRole(authUser.user_metadata?.role || "user");
-        setIsAuthenticated(true);
-      } else {
-        // Check localStorage for legacy users
-        const name = localStorage.getItem("idrink_user_name");
-        const role = localStorage.getItem("idrink_user_role");
-        
-        if (name && role) {
-          setUserName(name);
-          setUserRole(role);
-          setIsAuthenticated(true);
-        } else {
-          setIsAuthenticated(false);
-        }
+    if (user) {
+      setIsAuthenticated(true);
+      // If merchant, redirect to comerciante page
+      if (isMerchant) {
+        router.push("/comerciante");
+        return;
       }
-      setIsLoading(false);
+    } else {
+      // Check localStorage for legacy users
+      const name = localStorage.getItem("idrink_user_name");
+      const role = localStorage.getItem("idrink_user_role");
+      
+      if (name && role) {
+        setIsAuthenticated(true);
+        // If merchant, redirect
+        if (role === "merchant") {
+          router.push("/comerciante");
+          return;
+        }
+      } else {
+        setIsAuthenticated(false);
+      }
     }
-    checkAuth();
-  }, []);
+    setCheckingAuth(false);
+  }, [isLoading, user, profile, isMerchant, router]);
 
-  const handleLoginSuccess = () => {
-    // Refresh the page to get updated auth state
+  const handleLoginSuccess = (role: string) => {
+    // After login, refresh the page to get the auth state
     window.location.reload();
   };
 
-  if (isLoading) {
+  if (isLoading || checkingAuth) {
     return (
       <div className="flex min-h-[60vh] items-center justify-center">
         <div className="h-8 w-8 animate-spin rounded-full border-2 border-muted border-t-primary" />
@@ -360,11 +361,5 @@ export default function ProfilePage() {
     return <LoginForm onLoginSuccess={handleLoginSuccess} />;
   }
 
-  return (
-    <ProfileContent
-      user={user}
-      userName={userName || "Usuario"}
-      userRole={userRole || "user"}
-    />
-  );
+  return <ProfileContent />;
 }

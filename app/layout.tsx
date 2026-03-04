@@ -5,6 +5,7 @@ import { Navbar } from "@/components/layout/Navbar";
 import { Footer } from "@/components/layout/Footer";
 import { BottomNav } from "@/components/layout/BottomNav";
 import { CartProvider } from "@/contexts/CartContext";
+import { AuthProvider } from "@/contexts/AuthContext";
 import "./globals.css";
 
 const inter = Inter({ subsets: ["latin"], variable: "--font-inter" });
@@ -41,12 +42,14 @@ export default function RootLayout({
       <body
         className={`${inter.variable} ${geistMono.variable} font-sans antialiased`}
       >
-        <CartProvider>
-          <Navbar />
-          <main className="min-h-screen pb-20 pt-16 md:pb-0">{children}</main>
-          <Footer />
-          <BottomNav />
-        </CartProvider>
+        <AuthProvider>
+          <CartProvider>
+            <Navbar />
+            <main className="min-h-screen pb-20 pt-16 md:pb-0">{children}</main>
+            <Footer />
+            <BottomNav />
+          </CartProvider>
+        </AuthProvider>
         <Analytics />
       </body>
     </html>
