@@ -35,7 +35,7 @@ interface Address {
 export default function CheckoutPage() {
   const router = useRouter();
   const { items, totalPrice, clearCart } = useCart();
-  const { user, profile } = useAuth();
+  const { user, profile, guestName } = useAuth();
   const [userName, setUserName] = useState("");
   const [fullName, setFullName] = useState("");
   const [address, setAddress] = useState("");
@@ -49,20 +49,18 @@ export default function CheckoutPage() {
   const supabase = createClient();
 
   useEffect(() => {
-    const storedName = localStorage.getItem("idrink_user_name");
-    if (storedName) {
-      setUserName(storedName);
-      setFullName(storedName);
-    }
-    if (profile?.full_name) {
-      setFullName(profile.full_name);
+    // Set user name from profile or guest name
+    const name = profile?.full_name || user?.user_metadata?.full_name || guestName;
+    if (name) {
+      setUserName(name);
+      setFullName(name);
     }
 
     // Load saved addresses if user is logged in
     if (user) {
       loadAddresses();
     }
-  }, [user, profile]);
+  }, [user, profile, guestName]);
 
   useEffect(() => {
     if (items.length === 0 && !isSuccess) {
@@ -203,13 +201,19 @@ export default function CheckoutPage() {
         createdAt: new Date().toISOString(),
       };
 
-      const existingOrders = JSON.parse(
-        localStorage.getItem("idrink_orders") || "[]"
-      );
-      localStorage.setItem(
-        "idrink_orders",
-        JSON.stringify([order, ...existingOrders])
-      );
+      if (typeof window !== "undefined") {
+        try {
+          const existingOrders = JSON.parse(
+            localStorage.getItem("idrink_orders") || "[]"
+          );
+          localStorage.setItem(
+            "idrink_orders",
+            JSON.stringify([order, ...existingOrders])
+          );
+        } catch (e) {
+          console.error("Error saving to localStorage:", e);
+        }
+      }
 
       setOrderNumber(newOrderNumber);
       clearCart();

@@ -8,7 +8,7 @@ import { SearchInput } from "@/components/marketplace/SearchInput";
 import { BannerSection } from "@/components/marketplace/BannerSection";
 import { useAuth } from "@/contexts/AuthContext";
 import { createClient } from "@/lib/supabase/client";
-import { MapPin, Store } from "lucide-react";
+import { MapPin, Store, Loader2 } from "lucide-react";
 
 interface DbStore {
   id: string;
@@ -28,29 +28,37 @@ interface DbStore {
 export default function MarketplacePage() {
   const [search, setSearch] = useState("");
   const [selectedCategory, setSelectedCategory] = useState<string | null>(null);
-  const { user, profile } = useAuth();
+  const { user, profile, guestName, isLoading } = useAuth();
   const [dbStores, setDbStores] = useState<DbStore[]>([]);
+  const [isLoadingStores, setIsLoadingStores] = useState(true);
   const categories = getAllCategories();
 
-  const userName = profile?.full_name || user?.user_metadata?.full_name || localStorage.getItem("idrink_user_name");
+  // Get user name safely
+  const userName = profile?.full_name || user?.user_metadata?.full_name || guestName;
 
   const supabase = createClient();
 
   useEffect(() => {
     // Load stores from database
     async function loadStores() {
-      const { data } = await supabase
-        .from("stores")
-        .select("*")
-        .eq("is_active", true)
-        .order("rating", { ascending: false });
+      try {
+        const { data } = await supabase
+          .from("stores")
+          .select("*")
+          .eq("is_active", true)
+          .order("rating", { ascending: false });
 
-      if (data) {
-        setDbStores(data);
+        if (data) {
+          setDbStores(data);
+        }
+      } catch (error) {
+        console.error("Error loading stores:", error);
+      } finally {
+        setIsLoadingStores(false);
       }
     }
     loadStores();
-  }, []);
+  }, [supabase]);
 
   // Combine static stores with database stores
   const allStores = useMemo(() => {
@@ -76,10 +84,10 @@ export default function MarketplacePage() {
     }));
 
     // Filter out duplicates (prefer database version)
-    const staticIds = new Set(staticStores.map(s => s.id));
-    const filteredDynamic = dynamicStores.filter(s => !staticIds.has(s.id));
+    const dynamicIds = new Set(dynamicStores.map(s => s.id));
+    const filteredStatic = staticStores.filter(s => !dynamicIds.has(s.id));
 
-    return [...staticStores, ...filteredDynamic];
+    return [...filteredStatic, ...dynamicStores];
   }, [dbStores]);
 
   const filteredStores = useMemo(() => {
@@ -93,6 +101,14 @@ export default function MarketplacePage() {
       return matchesSearch && matchesCategory;
     });
   }, [search, selectedCategory, allStores]);
+
+  if (isLoading) {
+    return (
+      <div className="flex min-h-[60vh] items-center justify-center">
+        <Loader2 className="h-8 w-8 animate-spin text-primary" />
+      </div>
+    );
+  }
 
   return (
     <div className="mx-auto max-w-7xl px-4 py-8 lg:px-8">
@@ -142,7 +158,11 @@ export default function MarketplacePage() {
       </div>
 
       {/* Store Grid */}
-      {filteredStores.length > 0 ? (
+      {isLoadingStores ? (
+        <div className="flex items-center justify-center py-20">
+          <Loader2 className="h-8 w-8 animate-spin text-primary" />
+        </div>
+      ) : filteredStores.length > 0 ? (
         <div className="grid gap-6 sm:grid-cols-2 lg:grid-cols-3">
           {filteredStores.map((store) => (
             <StoreCard key={store.id} store={store} />

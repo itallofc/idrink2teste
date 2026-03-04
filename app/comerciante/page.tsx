@@ -63,7 +63,7 @@ type TabType = "dashboard" | "loja" | "produtos" | "pedidos";
 
 export default function ComerciantePage() {
   const router = useRouter();
-  const { user, profile, store, isLoading: authLoading, signOut, refreshStore } = useAuth();
+  const { user, profile, store, isLoading: authLoading, signOut, refreshStore, guestName, guestRole, clearGuestUser } = useAuth();
   const [activeTab, setActiveTab] = useState<TabType>("dashboard");
   const [isLoading, setIsLoading] = useState(true);
   const [products, setProducts] = useState<Product[]>([]);
@@ -115,19 +115,25 @@ export default function ComerciantePage() {
   useEffect(() => {
     if (authLoading) return;
 
-    if (!user) {
-      const role = localStorage.getItem("idrink_user_role");
-      if (role !== "merchant") {
-        router.push("/onboarding");
-        return;
-      }
-    } else if (profile && profile.role !== "merchant") {
+    // Check if user is a merchant
+    const isMerchantUser = profile?.role === "merchant" || 
+                           user?.user_metadata?.role === "merchant" ||
+                           guestRole === "merchant";
+
+    if (!user && !guestName) {
+      // Not authenticated at all
+      router.push("/onboarding");
+      return;
+    }
+
+    if (!isMerchantUser) {
+      // Authenticated but not a merchant
       router.push("/home");
       return;
     }
 
     loadData();
-  }, [authLoading, user, profile, router]);
+  }, [authLoading, user, profile, guestName, guestRole, router]);
 
   useEffect(() => {
     if (store) {
@@ -369,12 +375,11 @@ export default function ComerciantePage() {
 
   const handleLogout = async () => {
     await signOut();
-    localStorage.removeItem("idrink_user_name");
-    localStorage.removeItem("idrink_user_role");
+    clearGuestUser();
     router.push("/onboarding");
   };
 
-  const merchantName = profile?.full_name || user?.user_metadata?.full_name || localStorage.getItem("idrink_user_name") || "Comerciante";
+  const merchantName = profile?.full_name || user?.user_metadata?.full_name || guestName || "Comerciante";
 
   if (authLoading || isLoading) {
     return (

@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { Compass, Package, User, ShoppingCart, Store, BarChart3 } from "lucide-react";
+import { Compass, Package, User, ShoppingCart, BarChart3 } from "lucide-react";
 import { useCart } from "@/contexts/CartContext";
 import { useAuth } from "@/contexts/AuthContext";
 
@@ -58,11 +58,8 @@ export function BottomNav() {
     return null;
   }
 
-  // Check localStorage for role if auth is still loading
-  const localRole = typeof window !== "undefined" ? localStorage.getItem("idrink_user_role") : null;
-  const showMerchantNav = !isLoading && (isMerchant || localRole === "merchant");
-
-  const navItems = showMerchantNav ? merchantNavItems : userNavItems;
+  // While loading, show user nav by default (prevents flash)
+  const navItems = !isLoading && isMerchant ? merchantNavItems : userNavItems;
 
   return (
     <nav className="fixed bottom-0 left-0 right-0 z-50 border-t border-border/50 bg-background/80 backdrop-blur-lg md:hidden">

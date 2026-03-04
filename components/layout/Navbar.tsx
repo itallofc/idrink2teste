@@ -4,25 +4,27 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { Logo } from "./Logo";
 import { User, Store, Menu, X, ShoppingCart } from "lucide-react";
-import { useState, useEffect } from "react";
+import { useState } from "react";
 import { useCart } from "@/contexts/CartContext";
+import { useAuth } from "@/contexts/AuthContext";
 
 const navLinks = [
   { href: "/home", label: "Marketplace" },
-  { href: "/usuario", label: "Minha Conta" },
-  { href: "/comerciante", label: "Comerciante" },
+  { href: "/perfil", label: "Minha Conta" },
 ];
 
 export function Navbar() {
   const pathname = usePathname();
   const [mobileOpen, setMobileOpen] = useState(false);
-  const [userName, setUserName] = useState<string | null>(null);
   const { totalItems } = useCart();
+  const { profile, user, guestName, isMerchant } = useAuth();
 
-  useEffect(() => {
-    const name = localStorage.getItem("idrink_user_name");
-    setUserName(name);
-  }, []);
+  const userName = profile?.full_name || user?.user_metadata?.full_name || guestName;
+
+  // Add merchant link if user is a merchant
+  const links = isMerchant 
+    ? [...navLinks, { href: "/comerciante", label: "Painel" }]
+    : navLinks;
 
   return (
     <nav className="fixed top-0 left-0 right-0 z-50 glass">
@@ -31,7 +33,7 @@ export function Navbar() {
 
         {/* Desktop Navigation */}
         <div className="hidden items-center gap-1 md:flex">
-          {navLinks.map((link) => (
+          {links.map((link) => (
             <Link
               key={link.href}
               href={link.href}
@@ -90,7 +92,7 @@ export function Navbar() {
       {mobileOpen && (
         <div className="glass border-t border-border/50 md:hidden">
           <div className="flex flex-col gap-1 px-4 py-4">
-            {navLinks.map((link) => (
+            {links.map((link) => (
               <Link
                 key={link.href}
                 href={link.href}
@@ -106,21 +108,23 @@ export function Navbar() {
             ))}
             <div className="mt-2 flex flex-col gap-2 border-t border-border/50 pt-3">
               <Link
-                href="/usuario"
+                href="/perfil"
                 onClick={() => setMobileOpen(false)}
                 className="flex items-center gap-2 rounded-xl border border-border/50 px-4 py-3 text-sm text-muted-foreground"
               >
                 <User className="h-4 w-4" />
-                Entrar
+                {userName || "Entrar"}
               </Link>
-              <Link
-                href="/comerciante"
-                onClick={() => setMobileOpen(false)}
-                className="flex items-center justify-center gap-2 rounded-xl bg-primary px-4 py-3 text-sm font-medium text-primary-foreground"
-              >
-                <Store className="h-4 w-4" />
-                Seja Parceiro
-              </Link>
+              {!isMerchant && (
+                <Link
+                  href="/onboarding"
+                  onClick={() => setMobileOpen(false)}
+                  className="flex items-center justify-center gap-2 rounded-xl bg-primary px-4 py-3 text-sm font-medium text-primary-foreground"
+                >
+                  <Store className="h-4 w-4" />
+                  Seja Parceiro
+                </Link>
+              )}
             </div>
           </div>
         </div>

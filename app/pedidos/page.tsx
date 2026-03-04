@@ -105,12 +105,14 @@ export default function OrdersPage() {
   const loadOrders = async () => {
     setIsLoading(true);
 
-    // Load from localStorage for all users
-    const storedOrders = localStorage.getItem("idrink_orders");
-    if (storedOrders) {
+    // Load from localStorage for all users (safely)
+    if (typeof window !== "undefined") {
       try {
-        const parsed = JSON.parse(storedOrders);
-        setLocalOrders(parsed);
+        const storedOrders = localStorage.getItem("idrink_orders");
+        if (storedOrders) {
+          const parsed = JSON.parse(storedOrders);
+          setLocalOrders(parsed);
+        }
       } catch (e) {
         console.error("Failed to parse orders", e);
       }

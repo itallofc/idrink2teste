@@ -18,10 +18,9 @@ import {
   EyeOff,
   Loader2,
   ArrowRight,
-  MapPin,
 } from "lucide-react";
 
-function LoginForm({ onLoginSuccess }: { onLoginSuccess: (role: string) => void }) {
+function LoginForm({ onLoginSuccess }: { onLoginSuccess: () => void }) {
   const router = useRouter();
   const { signIn } = useAuth();
   const [email, setEmail] = useState("");
@@ -35,25 +34,36 @@ function LoginForm({ onLoginSuccess }: { onLoginSuccess: (role: string) => void 
     setError(null);
     setIsLoading(true);
 
+    if (!email.trim()) {
+      setError("Por favor, informe seu email");
+      setIsLoading(false);
+      return;
+    }
+
+    if (!password) {
+      setError("Por favor, informe sua senha");
+      setIsLoading(false);
+      return;
+    }
+
     try {
       const { error: signInError } = await signIn(email, password);
 
       if (signInError) throw signInError;
 
-      // Get user info after successful login - the AuthContext will update
-      // and trigger the useEffect in the parent component
-      onLoginSuccess("checking");
+      // Success - trigger parent to refresh
+      onLoginSuccess();
     } catch (err: unknown) {
       if (err instanceof Error) {
         if (err.message.includes("Invalid login credentials")) {
           setError("Email ou senha incorretos");
         } else if (err.message.includes("Email not confirmed")) {
-          setError("Por favor, confirme seu email antes de fazer login");
+          setError("Por favor, confirme seu email antes de fazer login. Verifique sua caixa de entrada.");
         } else {
           setError(err.message);
         }
       } else {
-        setError("Erro ao fazer login");
+        setError("Erro ao fazer login. Tente novamente.");
       }
     } finally {
       setIsLoading(false);
@@ -164,19 +174,16 @@ function LoginForm({ onLoginSuccess }: { onLoginSuccess: (role: string) => void 
 
 function ProfileContent() {
   const router = useRouter();
-  const { user, profile, signOut, isMerchant } = useAuth();
+  const { user, profile, signOut, isMerchant, guestName, clearGuestUser } = useAuth();
   const { clearCart, totalItems } = useCart();
 
-  const userName = profile?.full_name || user?.user_metadata?.full_name || localStorage.getItem("idrink_user_name") || "Usuario";
+  const userName = profile?.full_name || user?.user_metadata?.full_name || guestName || "Usuario";
   const userEmail = profile?.email || user?.email;
-  const userRole = profile?.role || user?.user_metadata?.role || localStorage.getItem("idrink_user_role") || "user";
 
   const handleLogout = async () => {
     await signOut();
-    localStorage.removeItem("idrink_user_name");
-    localStorage.removeItem("idrink_user_role");
-    localStorage.removeItem("idrink_cart");
-    localStorage.removeItem("idrink_orders");
+    clearGuestUser();
+    clearCart();
     router.push("/onboarding");
   };
 
@@ -201,6 +208,11 @@ function ProfileContent() {
         </p>
         {userEmail && (
           <p className="mt-1 text-sm text-muted-foreground">{userEmail}</p>
+        )}
+        {!user && guestName && (
+          <p className="mt-2 text-xs text-yellow-500">
+            Conta nao verificada - algumas funcoes podem ser limitadas
+          </p>
         )}
       </div>
 
@@ -311,53 +323,43 @@ function ProfileContent() {
 
 export default function ProfilePage() {
   const router = useRouter();
-  const { user, profile, isLoading, isMerchant } = useAuth();
-  const [isAuthenticated, setIsAuthenticated] = useState(false);
-  const [checkingAuth, setCheckingAuth] = useState(true);
+  const { user, profile, isLoading, isMerchant, guestName, guestRole } = useAuth();
+  const [showLogin, setShowLogin] = useState(false);
 
   useEffect(() => {
     if (isLoading) return;
 
-    if (user) {
-      setIsAuthenticated(true);
-      // If merchant, redirect to comerciante page
-      if (isMerchant) {
-        router.push("/comerciante");
-        return;
-      }
-    } else {
-      // Check localStorage for legacy users
-      const name = localStorage.getItem("idrink_user_name");
-      const role = localStorage.getItem("idrink_user_role");
-      
-      if (name && role) {
-        setIsAuthenticated(true);
-        // If merchant, redirect
-        if (role === "merchant") {
-          router.push("/comerciante");
-          return;
-        }
-      } else {
-        setIsAuthenticated(false);
-      }
-    }
-    setCheckingAuth(false);
-  }, [isLoading, user, profile, isMerchant, router]);
+    // Check if user is authenticated (either via Supabase or guest)
+    const isAuthenticated = !!user || !!guestName;
 
-  const handleLoginSuccess = (role: string) => {
-    // After login, refresh the page to get the auth state
+    if (!isAuthenticated) {
+      setShowLogin(true);
+      return;
+    }
+
+    // If authenticated merchant, redirect to comerciante
+    if (isMerchant || guestRole === "merchant") {
+      router.push("/comerciante");
+      return;
+    }
+
+    setShowLogin(false);
+  }, [isLoading, user, profile, isMerchant, guestName, guestRole, router]);
+
+  const handleLoginSuccess = () => {
+    // Reload to get fresh auth state
     window.location.reload();
   };
 
-  if (isLoading || checkingAuth) {
+  if (isLoading) {
     return (
       <div className="flex min-h-[60vh] items-center justify-center">
-        <div className="h-8 w-8 animate-spin rounded-full border-2 border-muted border-t-primary" />
+        <Loader2 className="h-8 w-8 animate-spin text-primary" />
       </div>
     );
   }
 
-  if (!isAuthenticated) {
+  if (showLogin) {
     return <LoginForm onLoginSuccess={handleLoginSuccess} />;
   }
 

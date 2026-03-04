@@ -11,7 +11,7 @@ type UserRole = "user" | "merchant";
 
 export default function OnboardingPage() {
   const router = useRouter();
-  const { user, profile, isLoading: authLoading, signUp } = useAuth();
+  const { user, profile, isLoading: authLoading, signUp, guestName, guestRole, setGuestUser } = useAuth();
   const [step, setStep] = useState(1);
   const [name, setName] = useState("");
   const [isLoading, setIsLoading] = useState(false);
@@ -52,11 +52,9 @@ export default function OnboardingPage() {
       return;
     }
 
-    // Check localStorage for legacy users
-    const storedName = localStorage.getItem("idrink_user_name");
-    const storedRole = localStorage.getItem("idrink_user_role");
-    if (storedName && storedRole) {
-      if (storedRole === "merchant") {
+    // Check guest user data from context (which reads localStorage safely)
+    if (guestName && guestRole) {
+      if (guestRole === "merchant") {
         router.push("/comerciante");
       } else {
         router.push("/home");
@@ -65,11 +63,10 @@ export default function OnboardingPage() {
     }
 
     setIsCheckingAuth(false);
-  }, [authLoading, user, profile, router]);
+  }, [authLoading, user, profile, guestName, guestRole, router]);
 
   const handleContinue = () => {
     if (name.trim()) {
-      localStorage.setItem("idrink_user_name", name.trim());
       setStep(2);
     }
   };
@@ -85,7 +82,7 @@ export default function OnboardingPage() {
 
   const handleUserContinueWithoutAccount = () => {
     setIsLoading(true);
-    localStorage.setItem("idrink_user_role", "user");
+    setGuestUser(name.trim(), "user");
     setTimeout(() => {
       router.push("/home");
     }, 500);
@@ -97,14 +94,26 @@ export default function OnboardingPage() {
     setIsLoading(true);
 
     // Validations
-    if (password !== confirmPassword) {
-      setError("As senhas nao coincidem");
+    if (!email.trim()) {
+      setError("Por favor, informe seu email");
       setIsLoading(false);
       return;
     }
 
     if (password.length < 6) {
       setError("A senha deve ter pelo menos 6 caracteres");
+      setIsLoading(false);
+      return;
+    }
+
+    if (password !== confirmPassword) {
+      setError("As senhas nao coincidem");
+      setIsLoading(false);
+      return;
+    }
+
+    if (selectedRole === "merchant" && !storeName.trim()) {
+      setError("Por favor, informe o nome da loja");
       setIsLoading(false);
       return;
     }
@@ -125,9 +134,8 @@ export default function OnboardingPage() {
       if (signUpError) throw signUpError;
 
       if (data?.user) {
-        // Save to localStorage as backup
-        localStorage.setItem("idrink_user_name", name.trim());
-        localStorage.setItem("idrink_user_role", selectedRole || "user");
+        // Save guest data as backup
+        setGuestUser(name.trim(), selectedRole || "user");
         
         // Move to success step
         setStep(5);
@@ -136,11 +144,13 @@ export default function OnboardingPage() {
       if (err instanceof Error) {
         if (err.message.includes("already registered")) {
           setError("Este email ja esta cadastrado. Tente fazer login.");
+        } else if (err.message.includes("invalid")) {
+          setError("Email invalido. Verifique e tente novamente.");
         } else {
           setError(err.message);
         }
       } else {
-        setError("Erro ao criar conta");
+        setError("Erro ao criar conta. Tente novamente.");
       }
     } finally {
       setIsLoading(false);
@@ -341,7 +351,7 @@ export default function OnboardingPage() {
               <form onSubmit={handleSignUp} className="flex flex-col gap-4">
                 <div>
                   <label htmlFor="store-name" className="mb-1.5 block text-sm font-medium text-foreground">
-                    Nome da Loja
+                    Nome da Loja *
                   </label>
                   <input
                     id="store-name"
@@ -364,14 +374,13 @@ export default function OnboardingPage() {
                     value={phone}
                     onChange={(e) => setPhone(e.target.value)}
                     placeholder="(00) 00000-0000"
-                    required
                     className="w-full rounded-xl border border-border/50 bg-input px-4 py-3 text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-[#ea1d2c]/30"
                   />
                 </div>
 
                 <div>
                   <label htmlFor="merchant-email" className="mb-1.5 block text-sm font-medium text-foreground">
-                    E-mail
+                    E-mail *
                   </label>
                   <input
                     id="merchant-email"
@@ -386,7 +395,7 @@ export default function OnboardingPage() {
 
                 <div>
                   <label htmlFor="merchant-password" className="mb-1.5 block text-sm font-medium text-foreground">
-                    Senha
+                    Senha *
                   </label>
                   <div className="relative">
                     <input
@@ -410,7 +419,7 @@ export default function OnboardingPage() {
 
                 <div>
                   <label htmlFor="merchant-confirm-password" className="mb-1.5 block text-sm font-medium text-foreground">
-                    Confirmar Senha
+                    Confirmar Senha *
                   </label>
                   <div className="relative">
                     <input
@@ -500,22 +509,8 @@ export default function OnboardingPage() {
 
               <form onSubmit={handleSignUp} className="flex flex-col gap-4">
                 <div>
-                  <label htmlFor="user-phone" className="mb-1.5 block text-sm font-medium text-foreground">
-                    Telefone/WhatsApp (opcional)
-                  </label>
-                  <input
-                    id="user-phone"
-                    type="tel"
-                    value={phone}
-                    onChange={(e) => setPhone(e.target.value)}
-                    placeholder="(00) 00000-0000"
-                    className="w-full rounded-xl border border-border/50 bg-input px-4 py-3 text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-[#ea1d2c]/30"
-                  />
-                </div>
-
-                <div>
                   <label htmlFor="user-email" className="mb-1.5 block text-sm font-medium text-foreground">
-                    E-mail
+                    E-mail *
                   </label>
                   <input
                     id="user-email"
@@ -529,8 +524,22 @@ export default function OnboardingPage() {
                 </div>
 
                 <div>
+                  <label htmlFor="user-phone" className="mb-1.5 block text-sm font-medium text-foreground">
+                    Telefone/WhatsApp
+                  </label>
+                  <input
+                    id="user-phone"
+                    type="tel"
+                    value={phone}
+                    onChange={(e) => setPhone(e.target.value)}
+                    placeholder="(00) 00000-0000"
+                    className="w-full rounded-xl border border-border/50 bg-input px-4 py-3 text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-[#ea1d2c]/30"
+                  />
+                </div>
+
+                <div>
                   <label htmlFor="user-password" className="mb-1.5 block text-sm font-medium text-foreground">
-                    Senha
+                    Senha *
                   </label>
                   <div className="relative">
                     <input
@@ -554,7 +563,7 @@ export default function OnboardingPage() {
 
                 <div>
                   <label htmlFor="user-confirm-password" className="mb-1.5 block text-sm font-medium text-foreground">
-                    Confirmar Senha
+                    Confirmar Senha *
                   </label>
                   <div className="relative">
                     <input
@@ -596,26 +605,24 @@ export default function OnboardingPage() {
                     "Criar Conta"
                   )}
                 </button>
-
-                <div className="relative my-2">
-                  <div className="absolute inset-0 flex items-center">
-                    <div className="w-full border-t border-border/50" />
-                  </div>
-                  <div className="relative flex justify-center text-xs">
-                    <span className="bg-card px-2 text-muted-foreground">ou</span>
-                  </div>
-                </div>
-
-                <button
-                  type="button"
-                  onClick={handleUserContinueWithoutAccount}
-                  disabled={isLoading}
-                  className="flex items-center justify-center gap-2 rounded-xl border border-border/50 py-3 font-medium text-muted-foreground transition-all hover:border-[#ea1d2c]/30 hover:text-foreground disabled:opacity-50"
-                >
-                  Continuar sem conta
-                  <ArrowRight className="h-4 w-4" />
-                </button>
               </form>
+
+              <div className="relative my-6">
+                <div className="absolute inset-0 flex items-center">
+                  <div className="w-full border-t border-border/50"></div>
+                </div>
+                <div className="relative flex justify-center">
+                  <span className="bg-background px-4 text-sm text-muted-foreground">ou</span>
+                </div>
+              </div>
+
+              <button
+                onClick={handleUserContinueWithoutAccount}
+                disabled={isLoading}
+                className="flex w-full items-center justify-center gap-2 rounded-xl border border-border/50 bg-secondary/50 py-3 font-medium text-foreground transition-all hover:bg-secondary disabled:opacity-50"
+              >
+                Continuar sem conta
+              </button>
 
               <p className="mt-6 text-center text-sm text-muted-foreground">
                 Ja tem conta?{" "}
@@ -630,51 +637,51 @@ export default function OnboardingPage() {
           </motion.div>
         )}
 
-        {/* Step 5: Success */}
+        {/* Step 5: Success - Email confirmation */}
         {step === 5 && (
           <motion.div
             key="step5"
-            initial={{ opacity: 0, scale: 0.95 }}
+            initial={{ opacity: 0, scale: 0.9 }}
             animate={{ opacity: 1, scale: 1 }}
             transition={{ duration: 0.4 }}
             className="relative z-10 flex w-full max-w-md flex-col items-center px-6 text-center"
           >
-            <div className="glass rounded-2xl p-8">
-              <div className="mx-auto mb-6 flex h-20 w-20 items-center justify-center rounded-full bg-green-500/10">
+            <div className="glass w-full rounded-2xl p-8">
+              <div className="mx-auto mb-6 flex h-20 w-20 items-center justify-center rounded-full bg-green-500/15">
                 <Mail className="h-10 w-10 text-green-500" />
               </div>
+
               <h2 className="text-2xl font-bold text-foreground">
-                Verifique seu e-mail
+                Verifique seu email
               </h2>
-              <p className="mt-3 text-muted-foreground">
-                Enviamos um link de confirmacao para <strong className="text-foreground">{email}</strong>. 
+
+              <p className="mt-4 text-muted-foreground">
+                Enviamos um link de confirmacao para <strong className="text-foreground">{email}</strong>.
                 Clique no link para ativar sua conta.
               </p>
-              <p className="mt-4 text-sm text-muted-foreground">
-                Verifique tambem a pasta de spam se nao encontrar o e-mail.
-              </p>
 
-              <div className="mt-8 flex flex-col gap-3">
-                <button
-                  onClick={() => router.push("/perfil")}
-                  className="flex items-center justify-center gap-2 rounded-xl bg-primary px-6 py-3 font-semibold text-primary-foreground transition-all hover:opacity-90"
-                >
-                  Ja confirmei, fazer login
-                  <ArrowRight className="h-4 w-4" />
-                </button>
-                <button
-                  onClick={() => {
-                    if (selectedRole === "merchant") {
-                      router.push("/comerciante");
-                    } else {
-                      router.push("/home");
-                    }
-                  }}
-                  className="flex items-center justify-center gap-2 rounded-xl border border-border/50 px-6 py-3 font-medium text-muted-foreground transition-all hover:border-[#ea1d2c]/30 hover:text-foreground"
-                >
-                  Continuar navegando
-                </button>
+              <div className="mt-6 rounded-lg bg-muted/50 p-4 text-sm text-muted-foreground">
+                <p>Nao recebeu o email?</p>
+                <p className="mt-1">Verifique sua pasta de spam ou lixo eletronico.</p>
               </div>
+
+              <button
+                onClick={() => {
+                  if (selectedRole === "merchant") {
+                    router.push("/comerciante");
+                  } else {
+                    router.push("/home");
+                  }
+                }}
+                className="mt-6 flex w-full items-center justify-center gap-2 rounded-xl bg-primary py-3 font-semibold text-primary-foreground transition-all hover:opacity-90 red-glow"
+              >
+                Continuar para o App
+                <ArrowRight className="h-5 w-5" />
+              </button>
+
+              <p className="mt-4 text-xs text-muted-foreground">
+                Voce pode continuar usando o app, mas algumas funcoes podem ser limitadas ate confirmar seu email.
+              </p>
             </div>
           </motion.div>
         )}

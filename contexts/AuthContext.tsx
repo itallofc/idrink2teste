@@ -55,14 +55,46 @@ interface AuthContextType {
   isLoading: boolean;
   isAuthenticated: boolean;
   isMerchant: boolean;
+  guestName: string | null;
+  guestRole: string | null;
   signIn: (email: string, password: string) => Promise<{ error: Error | null }>;
   signUp: (email: string, password: string, metadata?: Record<string, unknown>) => Promise<{ error: Error | null; data: { user: User | null } | null }>;
   signOut: () => Promise<void>;
   refreshProfile: () => Promise<void>;
   refreshStore: () => Promise<void>;
+  setGuestUser: (name: string, role: UserRole) => void;
+  clearGuestUser: () => void;
 }
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
+
+// Safe localStorage access
+function getLocalStorage(key: string): string | null {
+  if (typeof window === "undefined") return null;
+  try {
+    return localStorage.getItem(key);
+  } catch {
+    return null;
+  }
+}
+
+function setLocalStorage(key: string, value: string): void {
+  if (typeof window === "undefined") return;
+  try {
+    localStorage.setItem(key, value);
+  } catch {
+    // Ignore errors
+  }
+}
+
+function removeLocalStorage(key: string): void {
+  if (typeof window === "undefined") return;
+  try {
+    localStorage.removeItem(key);
+  } catch {
+    // Ignore errors
+  }
+}
 
 export function AuthProvider({ children }: { children: ReactNode }) {
   const [user, setUser] = useState<User | null>(null);
@@ -70,6 +102,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const [profile, setProfile] = useState<Profile | null>(null);
   const [store, setStore] = useState<Store | null>(null);
   const [isLoading, setIsLoading] = useState(true);
+  const [guestName, setGuestName] = useState<string | null>(null);
+  const [guestRole, setGuestRole] = useState<string | null>(null);
+  const [mounted, setMounted] = useState(false);
 
   const supabase = createClient();
 
@@ -115,7 +150,18 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     }
   }, [user, fetchStore]);
 
+  // Load guest data from localStorage on mount
   useEffect(() => {
+    setMounted(true);
+    const storedName = getLocalStorage("idrink_user_name");
+    const storedRole = getLocalStorage("idrink_user_role");
+    if (storedName) setGuestName(storedName);
+    if (storedRole) setGuestRole(storedRole);
+  }, []);
+
+  useEffect(() => {
+    if (!mounted) return;
+
     const initAuth = async () => {
       try {
         const { data: { session: currentSession } } = await supabase.auth.getSession();
@@ -159,15 +205,17 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       }
 
       if (event === "SIGNED_OUT") {
-        localStorage.removeItem("idrink_user_name");
-        localStorage.removeItem("idrink_user_role");
+        removeLocalStorage("idrink_user_name");
+        removeLocalStorage("idrink_user_role");
+        setGuestName(null);
+        setGuestRole(null);
       }
     });
 
     return () => {
       subscription.unsubscribe();
     };
-  }, [supabase, fetchProfile, fetchStore]);
+  }, [mounted, supabase, fetchProfile, fetchStore]);
 
   const signIn = async (email: string, password: string) => {
     const { error } = await supabase.auth.signInWithPassword({ email, password });
@@ -175,11 +223,15 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   };
 
   const signUp = async (email: string, password: string, metadata?: Record<string, unknown>) => {
+    const redirectUrl = typeof window !== "undefined" 
+      ? `${window.location.origin}/auth/callback`
+      : "/auth/callback";
+      
     const { data, error } = await supabase.auth.signUp({
       email,
       password,
       options: {
-        emailRedirectTo: process.env.NEXT_PUBLIC_DEV_SUPABASE_REDIRECT_URL || `${window.location.origin}/auth/callback`,
+        emailRedirectTo: process.env.NEXT_PUBLIC_DEV_SUPABASE_REDIRECT_URL || redirectUrl,
         data: metadata,
       },
     });
@@ -195,10 +247,29 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     setSession(null);
     setProfile(null);
     setStore(null);
+    removeLocalStorage("idrink_user_name");
+    removeLocalStorage("idrink_user_role");
+    setGuestName(null);
+    setGuestRole(null);
   };
 
-  const isAuthenticated = !!user || !!localStorage.getItem("idrink_user_name");
-  const isMerchant = profile?.role === "merchant" || user?.user_metadata?.role === "merchant";
+  const setGuestUser = (name: string, role: UserRole) => {
+    setLocalStorage("idrink_user_name", name);
+    setLocalStorage("idrink_user_role", role);
+    setGuestName(name);
+    setGuestRole(role);
+  };
+
+  const clearGuestUser = () => {
+    removeLocalStorage("idrink_user_name");
+    removeLocalStorage("idrink_user_role");
+    setGuestName(null);
+    setGuestRole(null);
+  };
+
+  // Computed values - safe for SSR
+  const isAuthenticated = !!user || (mounted && !!guestName);
+  const isMerchant = profile?.role === "merchant" || user?.user_metadata?.role === "merchant" || (mounted && guestRole === "merchant");
 
   return (
     <AuthContext.Provider
@@ -207,14 +278,18 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         session,
         profile,
         store,
-        isLoading,
+        isLoading: isLoading || !mounted,
         isAuthenticated,
         isMerchant,
+        guestName,
+        guestRole,
         signIn,
         signUp,
         signOut,
         refreshProfile,
         refreshStore,
+        setGuestUser,
+        clearGuestUser,
       }}
     >
       {children}

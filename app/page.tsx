@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { ArrowRight, Zap, Clock, Shield, Star } from "lucide-react";
 import { Logo } from "@/components/layout/Logo";
+import { useAuth } from "@/contexts/AuthContext";
 
 function HeroSection() {
   return (
@@ -162,14 +163,25 @@ function CTASection() {
 
 export default function LandingPage() {
   const router = useRouter();
+  const { user, guestName, guestRole, isLoading } = useAuth();
 
   useEffect(() => {
-    const storedName = localStorage.getItem("idrink_user_name");
-    const storedRole = localStorage.getItem("idrink_user_role");
-    if (!storedName || !storedRole) {
+    if (isLoading) return;
+    
+    // If user is authenticated (via Supabase or guest), let them see the landing
+    // If not authenticated at all, redirect to onboarding
+    if (!user && !guestName) {
       router.push("/onboarding");
     }
-  }, [router]);
+  }, [isLoading, user, guestName, router]);
+
+  if (isLoading) {
+    return (
+      <div className="flex min-h-screen items-center justify-center">
+        <div className="h-8 w-8 animate-spin rounded-full border-2 border-muted border-t-primary" />
+      </div>
+    );
+  }
 
   return (
     <>
