@@ -1,10 +1,12 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
+import Image from "next/image";
 import { useCart } from "@/contexts/CartContext";
 import { useAuth } from "@/contexts/AuthContext";
+import { createClient } from "@/lib/supabase/client";
 import {
   User as UserIcon,
   Store,
@@ -18,10 +20,11 @@ import {
   EyeOff,
   Loader2,
   ArrowRight,
+  Camera,
+  CheckCircle,
 } from "lucide-react";
 
 function LoginForm({ onLoginSuccess }: { onLoginSuccess: () => void }) {
-  const router = useRouter();
   const { signIn } = useAuth();
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
@@ -51,7 +54,6 @@ function LoginForm({ onLoginSuccess }: { onLoginSuccess: () => void }) {
 
       if (signInError) throw signInError;
 
-      // Success - trigger parent to refresh
       onLoginSuccess();
     } catch (err: unknown) {
       if (err instanceof Error) {
@@ -174,11 +176,58 @@ function LoginForm({ onLoginSuccess }: { onLoginSuccess: () => void }) {
 
 function ProfileContent() {
   const router = useRouter();
-  const { user, profile, signOut, isMerchant, guestName, clearGuestUser } = useAuth();
+  const { user, profile, signOut, isMerchant, guestName, clearGuestUser, refreshProfile } = useAuth();
   const { clearCart, totalItems } = useCart();
+  const [isUploadingAvatar, setIsUploadingAvatar] = useState(false);
+  const [avatarSuccess, setAvatarSuccess] = useState(false);
+  const fileInputRef = useRef<HTMLInputElement>(null);
+  const supabase = createClient();
 
   const userName = profile?.full_name || user?.user_metadata?.full_name || guestName || "Usuario";
   const userEmail = profile?.email || user?.email;
+  const avatarUrl = profile?.avatar_url || user?.user_metadata?.avatar_url;
+
+  const handleAvatarUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file || !user) return;
+
+    setIsUploadingAvatar(true);
+    setAvatarSuccess(false);
+
+    try {
+      const formData = new FormData();
+      formData.append("file", file);
+      formData.append("folder", "avatars");
+
+      const response = await fetch("/api/upload", {
+        method: "POST",
+        body: formData,
+      });
+
+      const data = await response.json();
+
+      if (!response.ok) {
+        throw new Error(data.error || "Erro no upload");
+      }
+
+      // Update profile with new avatar URL
+      await supabase
+        .from("profiles")
+        .update({ avatar_url: data.url, updated_at: new Date().toISOString() })
+        .eq("id", user.id);
+
+      await refreshProfile();
+      setAvatarSuccess(true);
+      setTimeout(() => setAvatarSuccess(false), 3000);
+    } catch (error) {
+      console.error("Error uploading avatar:", error);
+    } finally {
+      setIsUploadingAvatar(false);
+      if (fileInputRef.current) {
+        fileInputRef.current.value = "";
+      }
+    }
+  };
 
   const handleLogout = async () => {
     await signOut();
@@ -195,13 +244,46 @@ function ProfileContent() {
     <div className="mx-auto max-w-lg px-4 py-8 lg:px-8">
       {/* Profile Header */}
       <div className="glass mb-6 rounded-2xl p-6 text-center">
-        <div className="mx-auto mb-4 flex h-20 w-20 items-center justify-center rounded-full bg-[#ea1d2c]/10">
-          {isMerchant ? (
-            <Store className="h-10 w-10 text-[#ea1d2c]" />
-          ) : (
-            <UserIcon className="h-10 w-10 text-[#ea1d2c]" />
+        <div className="relative mx-auto mb-4 h-24 w-24">
+          <input
+            ref={fileInputRef}
+            type="file"
+            accept="image/jpeg,image/png,image/webp,image/gif"
+            onChange={handleAvatarUpload}
+            className="hidden"
+            id="avatar-upload"
+          />
+          <div className="relative h-full w-full overflow-hidden rounded-full bg-[#ea1d2c]/10">
+            {avatarUrl ? (
+              <Image src={avatarUrl} alt={userName} fill className="object-cover" />
+            ) : isMerchant ? (
+              <Store className="absolute inset-0 m-auto h-12 w-12 text-[#ea1d2c]" />
+            ) : (
+              <UserIcon className="absolute inset-0 m-auto h-12 w-12 text-[#ea1d2c]" />
+            )}
+            {isUploadingAvatar && (
+              <div className="absolute inset-0 flex items-center justify-center bg-background/80">
+                <Loader2 className="h-6 w-6 animate-spin text-primary" />
+              </div>
+            )}
+          </div>
+          {user && (
+            <label
+              htmlFor="avatar-upload"
+              className="absolute bottom-0 right-0 flex h-8 w-8 cursor-pointer items-center justify-center rounded-full bg-primary text-primary-foreground shadow-lg transition-all hover:opacity-90"
+            >
+              <Camera className="h-4 w-4" />
+            </label>
           )}
         </div>
+
+        {avatarSuccess && (
+          <div className="mb-4 flex items-center justify-center gap-2 rounded-lg bg-green-500/10 px-3 py-2 text-sm text-green-500">
+            <CheckCircle className="h-4 w-4" />
+            Foto atualizada!
+          </div>
+        )}
+
         <h1 className="text-2xl font-bold text-foreground">{userName}</h1>
         <p className="mt-1 text-muted-foreground">
           {isMerchant ? "Comerciante" : "Usuario"}
@@ -329,7 +411,6 @@ export default function ProfilePage() {
   useEffect(() => {
     if (isLoading) return;
 
-    // Check if user is authenticated (either via Supabase or guest)
     const isAuthenticated = !!user || !!guestName;
 
     if (!isAuthenticated) {
@@ -337,7 +418,6 @@ export default function ProfilePage() {
       return;
     }
 
-    // If authenticated merchant, redirect to comerciante
     if (isMerchant || guestRole === "merchant") {
       router.push("/comerciante");
       return;
@@ -347,7 +427,6 @@ export default function ProfilePage() {
   }, [isLoading, user, profile, isMerchant, guestName, guestRole, router]);
 
   const handleLoginSuccess = () => {
-    // Reload to get fresh auth state
     window.location.reload();
   };
 

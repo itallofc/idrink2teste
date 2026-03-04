@@ -2,9 +2,11 @@
 
 import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
+import Image from "next/image";
 import { useAuth, type Store as StoreType } from "@/contexts/AuthContext";
 import { createClient } from "@/lib/supabase/client";
 import { formatCurrency } from "@/utils/formatCurrency";
+import { ImageUpload } from "@/components/ui/image-upload";
 import {
   Store,
   TrendingUp,
@@ -22,9 +24,9 @@ import {
   Trash2,
   Save,
   X,
-  ImageIcon,
   Eye,
   EyeOff,
+  CheckCircle,
 } from "lucide-react";
 
 interface Product {
@@ -69,12 +71,15 @@ export default function ComerciantePage() {
   const [products, setProducts] = useState<Product[]>([]);
   const [categories, setCategories] = useState<Category[]>([]);
   const [orders, setOrders] = useState<Order[]>([]);
+  const [saveSuccess, setSaveSuccess] = useState(false);
 
   // Store form state
   const [storeForm, setStoreForm] = useState({
     name: "",
     tagline: "",
     description: "",
+    logo_url: "",
+    banner_url: "",
     phone: "",
     email: "",
     street: "",
@@ -121,13 +126,11 @@ export default function ComerciantePage() {
                            guestRole === "merchant";
 
     if (!user && !guestName) {
-      // Not authenticated at all
       router.push("/onboarding");
       return;
     }
 
     if (!isMerchantUser) {
-      // Authenticated but not a merchant
       router.push("/home");
       return;
     }
@@ -141,6 +144,8 @@ export default function ComerciantePage() {
         name: store.name || "",
         tagline: store.tagline || "",
         description: store.description || "",
+        logo_url: store.logo_url || "",
+        banner_url: store.banner_url || "",
         phone: store.phone || "",
         email: store.email || "",
         street: store.street || "",
@@ -162,7 +167,6 @@ export default function ComerciantePage() {
     setIsLoading(true);
     try {
       if (store?.id) {
-        // Load products
         const { data: productsData } = await supabase
           .from("products")
           .select("*")
@@ -171,7 +175,6 @@ export default function ComerciantePage() {
 
         if (productsData) setProducts(productsData);
 
-        // Load categories
         const { data: categoriesData } = await supabase
           .from("categories")
           .select("*")
@@ -180,15 +183,9 @@ export default function ComerciantePage() {
 
         if (categoriesData) setCategories(categoriesData);
 
-        // Load orders
         const { data: ordersData } = await supabase
           .from("orders")
-          .select(`
-            *,
-            profiles:customer_id (
-              full_name
-            )
-          `)
+          .select(`*, profiles:customer_id (full_name)`)
           .eq("store_id", store.id)
           .order("created_at", { ascending: false })
           .limit(20);
@@ -205,6 +202,7 @@ export default function ComerciantePage() {
   const handleSaveStore = async () => {
     if (!user) return;
     setIsSavingStore(true);
+    setSaveSuccess(false);
 
     try {
       const slug = storeForm.name
@@ -220,6 +218,8 @@ export default function ComerciantePage() {
         slug,
         tagline: storeForm.tagline || null,
         description: storeForm.description || null,
+        logo_url: storeForm.logo_url || null,
+        banner_url: storeForm.banner_url || null,
         phone: storeForm.phone || null,
         email: storeForm.email || null,
         street: storeForm.street || null,
@@ -238,17 +238,14 @@ export default function ComerciantePage() {
       };
 
       if (store?.id) {
-        await supabase
-          .from("stores")
-          .update(storeData)
-          .eq("id", store.id);
+        await supabase.from("stores").update(storeData).eq("id", store.id);
       } else {
-        await supabase
-          .from("stores")
-          .insert(storeData);
+        await supabase.from("stores").insert(storeData);
       }
 
       await refreshStore();
+      setSaveSuccess(true);
+      setTimeout(() => setSaveSuccess(false), 3000);
     } catch (error) {
       console.error("Error saving store:", error);
     } finally {
@@ -275,17 +272,11 @@ export default function ComerciantePage() {
       };
 
       if (editingProduct) {
-        await supabase
-          .from("products")
-          .update(productData)
-          .eq("id", editingProduct.id);
+        await supabase.from("products").update(productData).eq("id", editingProduct.id);
       } else {
-        await supabase
-          .from("products")
-          .insert(productData);
+        await supabase.from("products").insert(productData);
       }
 
-      // Reset form and reload
       setProductForm({
         name: "",
         description: "",
@@ -308,13 +299,8 @@ export default function ComerciantePage() {
 
   const handleDeleteProduct = async (productId: string) => {
     if (!confirm("Tem certeza que deseja excluir este produto?")) return;
-
     try {
-      await supabase
-        .from("products")
-        .delete()
-        .eq("id", productId);
-      
+      await supabase.from("products").delete().eq("id", productId);
       await loadData();
     } catch (error) {
       console.error("Error deleting product:", error);
@@ -338,17 +324,13 @@ export default function ComerciantePage() {
 
   const handleAddCategory = async () => {
     if (!store?.id || !newCategoryName.trim()) return;
-
     try {
-      await supabase
-        .from("categories")
-        .insert({
-          store_id: store.id,
-          name: newCategoryName.trim(),
-          is_active: true,
-          sort_order: categories.length,
-        });
-
+      await supabase.from("categories").insert({
+        store_id: store.id,
+        name: newCategoryName.trim(),
+        is_active: true,
+        sort_order: categories.length,
+      });
       setNewCategoryName("");
       setShowCategoryForm(false);
       await loadData();
@@ -359,14 +341,7 @@ export default function ComerciantePage() {
 
   const handleUpdateOrderStatus = async (orderId: string, newStatus: string) => {
     try {
-      await supabase
-        .from("orders")
-        .update({ 
-          status: newStatus,
-          updated_at: new Date().toISOString(),
-        })
-        .eq("id", orderId);
-
+      await supabase.from("orders").update({ status: newStatus, updated_at: new Date().toISOString() }).eq("id", orderId);
       await loadData();
     } catch (error) {
       console.error("Error updating order:", error);
@@ -401,8 +376,14 @@ export default function ComerciantePage() {
       {/* Header */}
       <div className="mb-8 flex items-center justify-between">
         <div className="flex items-center gap-4">
-          <div className="flex h-16 w-16 items-center justify-center rounded-2xl bg-primary/15 text-2xl font-bold text-primary">
-            {store?.name?.charAt(0).toUpperCase() || merchantName.charAt(0).toUpperCase()}
+          <div className="relative flex h-16 w-16 items-center justify-center overflow-hidden rounded-2xl bg-primary/15">
+            {store?.logo_url ? (
+              <Image src={store.logo_url} alt={store.name} fill className="object-cover" />
+            ) : (
+              <span className="text-2xl font-bold text-primary">
+                {store?.name?.charAt(0).toUpperCase() || merchantName.charAt(0).toUpperCase()}
+              </span>
+            )}
           </div>
           <div>
             <h1 className="text-2xl font-bold text-foreground">
@@ -442,12 +423,7 @@ export default function ComerciantePage() {
 
       {/* Dashboard Tab */}
       {activeTab === "dashboard" && (
-        <DashboardTab
-          store={store}
-          products={products}
-          orders={orders}
-          merchantName={merchantName}
-        />
+        <DashboardTab store={store} products={products} orders={orders} />
       )}
 
       {/* Store Settings Tab */}
@@ -458,6 +434,8 @@ export default function ComerciantePage() {
           isSaving={isSavingStore}
           onSave={handleSaveStore}
           hasStore={!!store}
+          saveSuccess={saveSuccess}
+          canSave={!!user}
         />
       )}
 
@@ -487,61 +465,22 @@ export default function ComerciantePage() {
 
       {/* Orders Tab */}
       {activeTab === "pedidos" && (
-        <OrdersTab
-          orders={orders}
-          onUpdateStatus={handleUpdateOrderStatus}
-        />
+        <OrdersTab orders={orders} onUpdateStatus={handleUpdateOrderStatus} />
       )}
     </div>
   );
 }
 
 // Dashboard Tab Component
-function DashboardTab({ 
-  store, 
-  products, 
-  orders,
-  merchantName 
-}: { 
-  store: StoreType | null; 
-  products: Product[];
-  orders: Order[];
-  merchantName: string;
-}) {
-  const todayOrders = orders.filter(o => {
-    const today = new Date().toDateString();
-    return new Date(o.created_at).toDateString() === today;
-  });
-
-  const totalRevenue = orders
-    .filter(o => o.status === "delivered")
-    .reduce((sum, o) => sum + o.total, 0);
+function DashboardTab({ store, products, orders }: { store: StoreType | null; products: Product[]; orders: Order[] }) {
+  const todayOrders = orders.filter(o => new Date(o.created_at).toDateString() === new Date().toDateString());
+  const totalRevenue = orders.filter(o => o.status === "delivered").reduce((sum, o) => sum + o.total, 0);
 
   const stats = [
-    {
-      icon: DollarSign,
-      label: "Faturamento Total",
-      value: formatCurrency(totalRevenue),
-      change: "+18%",
-    },
-    {
-      icon: Package,
-      label: "Pedidos Hoje",
-      value: todayOrders.length.toString(),
-      change: "+5%",
-    },
-    {
-      icon: ShoppingBag,
-      label: "Produtos Cadastrados",
-      value: products.length.toString(),
-      change: "",
-    },
-    {
-      icon: Users,
-      label: "Loja Aberta",
-      value: store?.is_open ? "Sim" : "Nao",
-      change: "",
-    },
+    { icon: DollarSign, label: "Faturamento Total", value: formatCurrency(totalRevenue), change: "+18%" },
+    { icon: Package, label: "Pedidos Hoje", value: todayOrders.length.toString(), change: "+5%" },
+    { icon: ShoppingBag, label: "Produtos Cadastrados", value: products.length.toString(), change: "" },
+    { icon: Users, label: "Loja Aberta", value: store?.is_open ? "Sim" : "Nao", change: "" },
   ];
 
   const statusColor: Record<string, string> = {
@@ -572,7 +511,6 @@ function DashboardTab({
         </div>
       )}
 
-      {/* Stats Grid */}
       <div className="mb-8 grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
         {stats.map((stat) => (
           <div key={stat.label} className="glass rounded-2xl p-5">
@@ -593,41 +531,26 @@ function DashboardTab({
         ))}
       </div>
 
-      {/* Recent Orders */}
       <div>
         <h2 className="mb-4 text-xl font-bold text-foreground">Pedidos Recentes</h2>
         {orders.length > 0 ? (
           <div className="flex flex-col gap-3">
             {orders.slice(0, 5).map((order) => (
-              <div
-                key={order.id}
-                className="glass flex items-center justify-between rounded-2xl p-4"
-              >
+              <div key={order.id} className="glass flex items-center justify-between rounded-2xl p-4">
                 <div>
-                  <p className="font-semibold text-foreground">
-                    {order.profiles?.full_name || "Cliente"}
-                  </p>
-                  <p className="text-sm text-muted-foreground">
-                    {order.order_number}
-                  </p>
+                  <p className="font-semibold text-foreground">{order.profiles?.full_name || "Cliente"}</p>
+                  <p className="text-sm text-muted-foreground">{order.order_number}</p>
                 </div>
                 <div className="flex flex-col items-end gap-1.5">
                   <div className="flex items-center gap-2">
                     <span className={`rounded-lg px-2.5 py-0.5 text-xs font-medium ${statusColor[order.status] || "bg-muted text-muted-foreground"}`}>
                       {statusLabels[order.status] || order.status}
                     </span>
-                    <span className="font-semibold text-foreground">
-                      {formatCurrency(order.total)}
-                    </span>
+                    <span className="font-semibold text-foreground">{formatCurrency(order.total)}</span>
                   </div>
                   <span className="flex items-center gap-1 text-xs text-muted-foreground">
                     <Clock className="h-3 w-3" />
-                    {new Date(order.created_at).toLocaleString("pt-BR", {
-                      day: "2-digit",
-                      month: "short",
-                      hour: "2-digit",
-                      minute: "2-digit",
-                    })}
+                    {new Date(order.created_at).toLocaleString("pt-BR", { day: "2-digit", month: "short", hour: "2-digit", minute: "2-digit" })}
                   </span>
                 </div>
               </div>
@@ -651,11 +574,15 @@ function StoreSettingsTab({
   isSaving,
   onSave,
   hasStore,
+  saveSuccess,
+  canSave,
 }: {
-  storeForm: typeof import("./page").default extends () => unknown ? never : {
+  storeForm: {
     name: string;
     tagline: string;
     description: string;
+    logo_url: string;
+    banner_url: string;
     phone: string;
     email: string;
     street: string;
@@ -674,6 +601,8 @@ function StoreSettingsTab({
   isSaving: boolean;
   onSave: () => void;
   hasStore: boolean;
+  saveSuccess: boolean;
+  canSave: boolean;
 }) {
   return (
     <div className="space-y-6">
@@ -684,6 +613,52 @@ function StoreSettingsTab({
           </p>
         </div>
       )}
+
+      {!canSave && (
+        <div className="rounded-2xl border border-yellow-500/30 bg-yellow-500/10 p-4">
+          <p className="text-sm text-yellow-500">
+            <strong>Atencao:</strong> Voce precisa confirmar seu email para cadastrar sua loja. Verifique sua caixa de entrada.
+          </p>
+        </div>
+      )}
+
+      {saveSuccess && (
+        <div className="flex items-center gap-2 rounded-2xl border border-green-500/30 bg-green-500/10 p-4">
+          <CheckCircle className="h-5 w-5 text-green-500" />
+          <p className="text-sm text-green-500">
+            <strong>Sucesso!</strong> Sua loja foi {hasStore ? "atualizada" : "cadastrada"} com sucesso e ja esta visivel na home.
+          </p>
+        </div>
+      )}
+
+      {/* Images */}
+      <div className="glass rounded-2xl p-6">
+        <h3 className="mb-4 text-lg font-semibold text-foreground">Imagens da Loja</h3>
+        <div className="grid gap-6 sm:grid-cols-2">
+          <div>
+            <label className="mb-2 block text-sm font-medium text-foreground">Logo da Loja</label>
+            <ImageUpload
+              value={storeForm.logo_url || null}
+              onChange={(url) => setStoreForm({ ...storeForm, logo_url: url || "" })}
+              folder="logos"
+              label="Enviar logo"
+              aspectRatio="square"
+            />
+            <p className="mt-2 text-xs text-muted-foreground">Recomendado: 200x200px</p>
+          </div>
+          <div>
+            <label className="mb-2 block text-sm font-medium text-foreground">Banner / Capa</label>
+            <ImageUpload
+              value={storeForm.banner_url || null}
+              onChange={(url) => setStoreForm({ ...storeForm, banner_url: url || "" })}
+              folder="banners"
+              label="Enviar banner"
+              aspectRatio="banner"
+            />
+            <p className="mt-2 text-xs text-muted-foreground">Recomendado: 1200x400px</p>
+          </div>
+        </div>
+      </div>
 
       {/* Basic Info */}
       <div className="glass rounded-2xl p-6">
@@ -878,9 +853,7 @@ function StoreSettingsTab({
           <button
             onClick={() => setStoreForm({ ...storeForm, is_open: !storeForm.is_open })}
             className={`flex items-center gap-2 rounded-xl px-4 py-2 font-medium transition-all ${
-              storeForm.is_open
-                ? "bg-green-500/15 text-green-500"
-                : "bg-muted text-muted-foreground"
+              storeForm.is_open ? "bg-green-500/15 text-green-500" : "bg-muted text-muted-foreground"
             }`}
           >
             {storeForm.is_open ? <Eye className="h-4 w-4" /> : <EyeOff className="h-4 w-4" />}
@@ -892,7 +865,7 @@ function StoreSettingsTab({
       {/* Save Button */}
       <button
         onClick={onSave}
-        disabled={isSaving || !storeForm.name.trim()}
+        disabled={isSaving || !storeForm.name.trim() || !canSave}
         className="flex w-full items-center justify-center gap-2 rounded-xl bg-primary py-3 font-semibold text-primary-foreground transition-all hover:opacity-90 disabled:opacity-50"
       >
         {isSaving ? (
@@ -903,7 +876,7 @@ function StoreSettingsTab({
         ) : (
           <>
             <Save className="h-5 w-5" />
-            {hasStore ? "Salvar Alteracoes" : "Criar Loja"}
+            {hasStore ? "Salvar Alteracoes" : "Cadastrar Loja"}
           </>
         )}
       </button>
@@ -936,16 +909,7 @@ function ProductsTab({
   categories: Category[];
   showProductForm: boolean;
   setShowProductForm: (show: boolean) => void;
-  productForm: {
-    name: string;
-    description: string;
-    price: string;
-    original_price: string;
-    image_url: string;
-    category_id: string;
-    is_available: boolean;
-    stock_quantity: string;
-  };
+  productForm: { name: string; description: string; price: string; original_price: string; image_url: string; category_id: string; is_available: boolean; stock_quantity: string };
   setProductForm: (form: typeof productForm) => void;
   editingProduct: Product | null;
   setEditingProduct: (product: Product | null) => void;
@@ -965,30 +929,18 @@ function ProductsTab({
       <div className="glass rounded-2xl p-8 text-center">
         <Store className="mx-auto mb-4 h-12 w-12 text-muted-foreground" />
         <p className="text-lg font-semibold text-foreground">Configure sua loja primeiro</p>
-        <p className="mt-2 text-muted-foreground">
-          Voce precisa criar sua loja antes de adicionar produtos.
-        </p>
+        <p className="mt-2 text-muted-foreground">Voce precisa criar sua loja antes de adicionar produtos.</p>
       </div>
     );
   }
 
   return (
     <div className="space-y-6">
-      {/* Actions */}
       <div className="flex flex-wrap gap-3">
         <button
           onClick={() => {
             setEditingProduct(null);
-            setProductForm({
-              name: "",
-              description: "",
-              price: "",
-              original_price: "",
-              image_url: "",
-              category_id: "",
-              is_available: true,
-              stock_quantity: "",
-            });
+            setProductForm({ name: "", description: "", price: "", original_price: "", image_url: "", category_id: "", is_available: true, stock_quantity: "" });
             setShowProductForm(true);
           }}
           className="flex items-center gap-2 rounded-xl bg-primary px-4 py-2.5 font-medium text-primary-foreground transition-all hover:opacity-90"
@@ -1005,7 +957,6 @@ function ProductsTab({
         </button>
       </div>
 
-      {/* Category Form Modal */}
       {showCategoryForm && (
         <div className="glass rounded-2xl p-4">
           <div className="flex items-center gap-3">
@@ -1016,207 +967,100 @@ function ProductsTab({
               placeholder="Nome da categoria"
               className="flex-1 rounded-xl border border-border/50 bg-input px-4 py-2.5 text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-primary/30"
             />
-            <button
-              onClick={onAddCategory}
-              disabled={!newCategoryName.trim()}
-              className="rounded-xl bg-primary px-4 py-2.5 font-medium text-primary-foreground disabled:opacity-50"
-            >
+            <button onClick={onAddCategory} disabled={!newCategoryName.trim()} className="rounded-xl bg-primary px-4 py-2.5 font-medium text-primary-foreground disabled:opacity-50">
               Adicionar
             </button>
-            <button
-              onClick={() => {
-                setShowCategoryForm(false);
-                setNewCategoryName("");
-              }}
-              className="rounded-xl p-2.5 text-muted-foreground hover:text-foreground"
-            >
+            <button onClick={() => { setShowCategoryForm(false); setNewCategoryName(""); }} className="rounded-xl p-2.5 text-muted-foreground hover:text-foreground">
               <X className="h-5 w-5" />
             </button>
           </div>
         </div>
       )}
 
-      {/* Product Form */}
       {showProductForm && (
         <div className="glass rounded-2xl p-6">
           <div className="mb-4 flex items-center justify-between">
-            <h3 className="text-lg font-semibold text-foreground">
-              {editingProduct ? "Editar Produto" : "Novo Produto"}
-            </h3>
-            <button
-              onClick={() => {
-                setShowProductForm(false);
-                setEditingProduct(null);
-              }}
-              className="rounded-lg p-1 text-muted-foreground hover:text-foreground"
-            >
+            <h3 className="text-lg font-semibold text-foreground">{editingProduct ? "Editar Produto" : "Novo Produto"}</h3>
+            <button onClick={() => { setShowProductForm(false); setEditingProduct(null); }} className="rounded-lg p-1 text-muted-foreground hover:text-foreground">
               <X className="h-5 w-5" />
             </button>
           </div>
 
           <div className="grid gap-4 sm:grid-cols-2">
-            <div>
-              <label className="mb-1.5 block text-sm font-medium text-foreground">Nome *</label>
-              <input
-                type="text"
-                value={productForm.name}
-                onChange={(e) => setProductForm({ ...productForm, name: e.target.value })}
-                placeholder="Nome do produto"
-                className="w-full rounded-xl border border-border/50 bg-input px-4 py-3 text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-primary/30"
+            <div className="sm:col-span-2">
+              <label className="mb-2 block text-sm font-medium text-foreground">Imagem do Produto</label>
+              <ImageUpload
+                value={productForm.image_url || null}
+                onChange={(url) => setProductForm({ ...productForm, image_url: url || "" })}
+                folder="products"
+                label="Enviar imagem"
+                aspectRatio="square"
               />
             </div>
             <div>
+              <label className="mb-1.5 block text-sm font-medium text-foreground">Nome *</label>
+              <input type="text" value={productForm.name} onChange={(e) => setProductForm({ ...productForm, name: e.target.value })} placeholder="Nome do produto" className="w-full rounded-xl border border-border/50 bg-input px-4 py-3 text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-primary/30" />
+            </div>
+            <div>
               <label className="mb-1.5 block text-sm font-medium text-foreground">Categoria</label>
-              <select
-                value={productForm.category_id}
-                onChange={(e) => setProductForm({ ...productForm, category_id: e.target.value })}
-                className="w-full rounded-xl border border-border/50 bg-input px-4 py-3 text-foreground focus:outline-none focus:ring-2 focus:ring-primary/30"
-              >
+              <select value={productForm.category_id} onChange={(e) => setProductForm({ ...productForm, category_id: e.target.value })} className="w-full rounded-xl border border-border/50 bg-input px-4 py-3 text-foreground focus:outline-none focus:ring-2 focus:ring-primary/30">
                 <option value="">Selecione uma categoria</option>
-                {categories.map((cat) => (
-                  <option key={cat.id} value={cat.id}>{cat.name}</option>
-                ))}
+                {categories.map((cat) => (<option key={cat.id} value={cat.id}>{cat.name}</option>))}
               </select>
             </div>
             <div className="sm:col-span-2">
               <label className="mb-1.5 block text-sm font-medium text-foreground">Descricao</label>
-              <textarea
-                value={productForm.description}
-                onChange={(e) => setProductForm({ ...productForm, description: e.target.value })}
-                placeholder="Descricao do produto"
-                rows={2}
-                className="w-full resize-none rounded-xl border border-border/50 bg-input px-4 py-3 text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-primary/30"
-              />
+              <textarea value={productForm.description} onChange={(e) => setProductForm({ ...productForm, description: e.target.value })} placeholder="Descricao do produto" rows={2} className="w-full resize-none rounded-xl border border-border/50 bg-input px-4 py-3 text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-primary/30" />
             </div>
             <div>
               <label className="mb-1.5 block text-sm font-medium text-foreground">Preco (R$) *</label>
-              <input
-                type="number"
-                step="0.01"
-                value={productForm.price}
-                onChange={(e) => setProductForm({ ...productForm, price: e.target.value })}
-                placeholder="0.00"
-                className="w-full rounded-xl border border-border/50 bg-input px-4 py-3 text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-primary/30"
-              />
+              <input type="number" step="0.01" value={productForm.price} onChange={(e) => setProductForm({ ...productForm, price: e.target.value })} placeholder="0.00" className="w-full rounded-xl border border-border/50 bg-input px-4 py-3 text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-primary/30" />
             </div>
             <div>
-              <label className="mb-1.5 block text-sm font-medium text-foreground">Preco Original (promocao)</label>
-              <input
-                type="number"
-                step="0.01"
-                value={productForm.original_price}
-                onChange={(e) => setProductForm({ ...productForm, original_price: e.target.value })}
-                placeholder="0.00"
-                className="w-full rounded-xl border border-border/50 bg-input px-4 py-3 text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-primary/30"
-              />
+              <label className="mb-1.5 block text-sm font-medium text-foreground">Preco Original</label>
+              <input type="number" step="0.01" value={productForm.original_price} onChange={(e) => setProductForm({ ...productForm, original_price: e.target.value })} placeholder="0.00" className="w-full rounded-xl border border-border/50 bg-input px-4 py-3 text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-primary/30" />
             </div>
             <div>
               <label className="mb-1.5 block text-sm font-medium text-foreground">Estoque</label>
-              <input
-                type="number"
-                value={productForm.stock_quantity}
-                onChange={(e) => setProductForm({ ...productForm, stock_quantity: e.target.value })}
-                placeholder="0"
-                className="w-full rounded-xl border border-border/50 bg-input px-4 py-3 text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-primary/30"
-              />
+              <input type="number" value={productForm.stock_quantity} onChange={(e) => setProductForm({ ...productForm, stock_quantity: e.target.value })} placeholder="0" className="w-full rounded-xl border border-border/50 bg-input px-4 py-3 text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-primary/30" />
             </div>
-            <div>
-              <label className="mb-1.5 block text-sm font-medium text-foreground">URL da Imagem</label>
-              <input
-                type="url"
-                value={productForm.image_url}
-                onChange={(e) => setProductForm({ ...productForm, image_url: e.target.value })}
-                placeholder="https://..."
-                className="w-full rounded-xl border border-border/50 bg-input px-4 py-3 text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-primary/30"
-              />
-            </div>
-            <div className="flex items-center gap-3">
-              <input
-                type="checkbox"
-                id="is_available"
-                checked={productForm.is_available}
-                onChange={(e) => setProductForm({ ...productForm, is_available: e.target.checked })}
-                className="h-4 w-4 rounded border-border accent-primary"
-              />
-              <label htmlFor="is_available" className="text-sm font-medium text-foreground">
-                Produto disponivel
-              </label>
+            <div className="flex items-center gap-2">
+              <input type="checkbox" id="is_available" checked={productForm.is_available} onChange={(e) => setProductForm({ ...productForm, is_available: e.target.checked })} className="h-4 w-4 rounded border-border text-primary" />
+              <label htmlFor="is_available" className="text-sm font-medium text-foreground">Disponivel</label>
             </div>
           </div>
 
-          <div className="mt-6 flex gap-3">
-            <button
-              onClick={onSaveProduct}
-              disabled={isSaving || !productForm.name.trim() || !productForm.price}
-              className="flex flex-1 items-center justify-center gap-2 rounded-xl bg-primary py-3 font-semibold text-primary-foreground transition-all hover:opacity-90 disabled:opacity-50"
-            >
-              {isSaving ? (
-                <>
-                  <Loader2 className="h-5 w-5 animate-spin" />
-                  Salvando...
-                </>
-              ) : (
-                <>
-                  <Save className="h-5 w-5" />
-                  {editingProduct ? "Salvar Alteracoes" : "Criar Produto"}
-                </>
-              )}
-            </button>
-          </div>
+          <button onClick={onSaveProduct} disabled={isSaving || !productForm.name.trim() || !productForm.price} className="mt-6 flex w-full items-center justify-center gap-2 rounded-xl bg-primary py-3 font-semibold text-primary-foreground transition-all hover:opacity-90 disabled:opacity-50">
+            {isSaving ? (<><Loader2 className="h-5 w-5 animate-spin" />Salvando...</>) : (<><Save className="h-5 w-5" />{editingProduct ? "Salvar Alteracoes" : "Adicionar Produto"}</>)}
+          </button>
         </div>
       )}
 
-      {/* Products List */}
       {products.length > 0 ? (
         <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
           {products.map((product) => (
             <div key={product.id} className="glass overflow-hidden rounded-2xl">
-              <div className="aspect-video bg-muted/50 flex items-center justify-center">
+              <div className="relative aspect-square bg-muted">
                 {product.image_url ? (
-                  <img
-                    src={product.image_url}
-                    alt={product.name}
-                    className="h-full w-full object-cover"
-                  />
+                  <Image src={product.image_url} alt={product.name} fill className="object-cover" />
                 ) : (
-                  <ImageIcon className="h-12 w-12 text-muted-foreground" />
+                  <div className="flex h-full items-center justify-center text-4xl font-bold text-muted-foreground/20">{product.name.charAt(0)}</div>
+                )}
+                {!product.is_available && (
+                  <div className="absolute inset-0 flex items-center justify-center bg-background/80">
+                    <span className="rounded-lg bg-destructive/15 px-3 py-1 text-sm font-medium text-destructive">Indisponivel</span>
+                  </div>
                 )}
               </div>
               <div className="p-4">
-                <div className="mb-2 flex items-start justify-between">
-                  <div>
-                    <h4 className="font-semibold text-foreground">{product.name}</h4>
-                    <p className="text-lg font-bold text-primary">
-                      {formatCurrency(product.price)}
-                    </p>
+                <h4 className="font-semibold text-foreground line-clamp-1">{product.name}</h4>
+                <p className="mt-1 text-sm text-muted-foreground line-clamp-1">{product.description || "Sem descricao"}</p>
+                <div className="mt-3 flex items-center justify-between">
+                  <span className="text-lg font-bold text-[#ea1d2c]">{formatCurrency(product.price)}</span>
+                  <div className="flex gap-2">
+                    <button onClick={() => onEditProduct(product)} className="rounded-lg p-2 text-muted-foreground hover:bg-muted hover:text-foreground"><Edit className="h-4 w-4" /></button>
+                    <button onClick={() => onDeleteProduct(product.id)} className="rounded-lg p-2 text-muted-foreground hover:bg-destructive/10 hover:text-destructive"><Trash2 className="h-4 w-4" /></button>
                   </div>
-                  <span
-                    className={`rounded-lg px-2 py-0.5 text-xs font-medium ${
-                      product.is_available
-                        ? "bg-green-500/15 text-green-500"
-                        : "bg-muted text-muted-foreground"
-                    }`}
-                  >
-                    {product.is_available ? "Disponivel" : "Indisponivel"}
-                  </span>
-                </div>
-                <p className="mb-4 text-sm text-muted-foreground line-clamp-2">
-                  {product.description || "Sem descricao"}
-                </p>
-                <div className="flex gap-2">
-                  <button
-                    onClick={() => onEditProduct(product)}
-                    className="flex flex-1 items-center justify-center gap-1 rounded-lg bg-secondary py-2 text-sm font-medium text-foreground transition-all hover:bg-secondary/80"
-                  >
-                    <Edit className="h-4 w-4" />
-                    Editar
-                  </button>
-                  <button
-                    onClick={() => onDeleteProduct(product.id)}
-                    className="flex items-center justify-center rounded-lg bg-destructive/10 px-3 py-2 text-destructive transition-all hover:bg-destructive/20"
-                  >
-                    <Trash2 className="h-4 w-4" />
-                  </button>
                 </div>
               </div>
             </div>
@@ -1226,9 +1070,7 @@ function ProductsTab({
         <div className="glass rounded-2xl p-8 text-center">
           <ShoppingBag className="mx-auto mb-4 h-12 w-12 text-muted-foreground" />
           <p className="text-lg font-semibold text-foreground">Nenhum produto cadastrado</p>
-          <p className="mt-2 text-muted-foreground">
-            Clique em &quot;Adicionar Produto&quot; para comecar.
-          </p>
+          <p className="mt-2 text-muted-foreground">Adicione produtos para sua loja comecar a vender.</p>
         </div>
       )}
     </div>
@@ -1236,22 +1078,7 @@ function ProductsTab({
 }
 
 // Orders Tab Component
-function OrdersTab({
-  orders,
-  onUpdateStatus,
-}: {
-  orders: Order[];
-  onUpdateStatus: (orderId: string, status: string) => void;
-}) {
-  const statusOptions = [
-    { value: "pending", label: "Pendente" },
-    { value: "confirmed", label: "Confirmado" },
-    { value: "preparing", label: "Preparando" },
-    { value: "delivering", label: "A caminho" },
-    { value: "delivered", label: "Entregue" },
-    { value: "cancelled", label: "Cancelado" },
-  ];
-
+function OrdersTab({ orders, onUpdateStatus }: { orders: Order[]; onUpdateStatus: (orderId: string, status: string) => void }) {
   const statusColor: Record<string, string> = {
     pending: "bg-yellow-500/15 text-yellow-500",
     confirmed: "bg-blue-500/15 text-blue-500",
@@ -1261,14 +1088,23 @@ function OrdersTab({
     cancelled: "bg-destructive/15 text-destructive",
   };
 
+  const statusLabels: Record<string, string> = {
+    pending: "Pendente",
+    confirmed: "Confirmado",
+    preparing: "Preparando",
+    delivering: "A caminho",
+    delivered: "Entregue",
+    cancelled: "Cancelado",
+  };
+
+  const statusOptions = ["pending", "confirmed", "preparing", "delivering", "delivered", "cancelled"];
+
   if (orders.length === 0) {
     return (
       <div className="glass rounded-2xl p-8 text-center">
         <Package className="mx-auto mb-4 h-12 w-12 text-muted-foreground" />
-        <p className="text-lg font-semibold text-foreground">Nenhum pedido ainda</p>
-        <p className="mt-2 text-muted-foreground">
-          Os pedidos dos clientes aparecerão aqui.
-        </p>
+        <p className="text-lg font-semibold text-foreground">Nenhum pedido recebido</p>
+        <p className="mt-2 text-muted-foreground">Quando voce receber pedidos, eles aparecerao aqui.</p>
       </div>
     );
   }
@@ -1276,37 +1112,29 @@ function OrdersTab({
   return (
     <div className="space-y-4">
       {orders.map((order) => (
-        <div key={order.id} className="glass rounded-2xl p-4">
+        <div key={order.id} className="glass rounded-2xl p-4 sm:p-6">
           <div className="flex flex-wrap items-start justify-between gap-4">
             <div>
               <div className="flex items-center gap-3">
-                <p className="font-semibold text-foreground">
-                  {order.order_number}
-                </p>
+                <h3 className="font-semibold text-foreground">{order.order_number}</h3>
                 <span className={`rounded-lg px-2.5 py-0.5 text-xs font-medium ${statusColor[order.status] || "bg-muted text-muted-foreground"}`}>
-                  {statusOptions.find(s => s.value === order.status)?.label || order.status}
+                  {statusLabels[order.status] || order.status}
                 </span>
               </div>
-              <p className="mt-1 text-sm text-muted-foreground">
-                Cliente: {order.profiles?.full_name || "Nao identificado"}
-              </p>
-              <p className="text-sm text-muted-foreground">
-                {new Date(order.created_at).toLocaleString("pt-BR")}
+              <p className="mt-1 text-sm text-muted-foreground">{order.profiles?.full_name || "Cliente"}</p>
+              <p className="mt-1 text-xs text-muted-foreground">
+                {new Date(order.created_at).toLocaleString("pt-BR", { day: "2-digit", month: "short", year: "numeric", hour: "2-digit", minute: "2-digit" })}
               </p>
             </div>
             <div className="flex flex-col items-end gap-2">
-              <p className="text-lg font-bold text-primary">
-                {formatCurrency(order.total)}
-              </p>
+              <span className="text-lg font-bold text-foreground">{formatCurrency(order.total)}</span>
               <select
                 value={order.status}
                 onChange={(e) => onUpdateStatus(order.id, e.target.value)}
                 className="rounded-lg border border-border/50 bg-input px-3 py-1.5 text-sm text-foreground focus:outline-none focus:ring-2 focus:ring-primary/30"
               >
                 {statusOptions.map((status) => (
-                  <option key={status.value} value={status.value}>
-                    {status.label}
-                  </option>
+                  <option key={status} value={status}>{statusLabels[status]}</option>
                 ))}
               </select>
             </div>
