@@ -59,6 +59,7 @@ interface AuthContextType {
   guestRole: string | null;
   signIn: (email: string, password: string) => Promise<{ error: Error | null }>;
   signUp: (email: string, password: string, metadata?: Record<string, unknown>) => Promise<{ error: Error | null; data: { user: User | null } | null }>;
+  signInWithGoogle: (redirectPath?: string) => Promise<{ error: Error | null }>;
   signOut: () => Promise<void>;
   refreshProfile: () => Promise<void>;
   refreshStore: () => Promise<void>;
@@ -222,6 +223,20 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     return { error: error as Error | null };
   };
 
+  const signInWithGoogle = async (redirectPath?: string) => {
+    const redirectUrl = typeof window !== "undefined"
+      ? `${window.location.origin}/auth/callback${redirectPath ? `?next=${encodeURIComponent(redirectPath)}` : ""}`
+      : "/auth/callback";
+
+    const { error } = await supabase.auth.signInWithOAuth({
+      provider: "google",
+      options: {
+        redirectTo: process.env.NEXT_PUBLIC_DEV_SUPABASE_REDIRECT_URL || redirectUrl,
+      },
+    });
+    return { error: error as Error | null };
+  };
+
   const signUp = async (email: string, password: string, metadata?: Record<string, unknown>) => {
     const redirectUrl = typeof window !== "undefined" 
       ? `${window.location.origin}/auth/callback`
@@ -285,6 +300,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         guestRole,
         signIn,
         signUp,
+        signInWithGoogle,
         signOut,
         refreshProfile,
         refreshStore,

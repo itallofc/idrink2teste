@@ -63,8 +63,11 @@ export async function GET(request: Request) {
         }
       }
 
-      // Redirect based on role
-      const redirectUrl = role === 'merchant' ? '/comerciante' : next
+      // Redirect based on role or next parameter
+      let redirectUrl = next
+      if (role === 'merchant') {
+        redirectUrl = next === '/home' ? '/comerciante' : next
+      }
       return NextResponse.redirect(`${origin}${redirectUrl}`)
     }
   }
