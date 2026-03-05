@@ -3,8 +3,13 @@ import Image from "next/image";
 import { Star, Clock } from "lucide-react";
 import type { Store } from "@/data/stores";
 
+interface ExtendedStore extends Store {
+  source?: "static" | "database";
+  isOpen?: boolean;
+}
+
 interface StoreCardProps {
-  store: Store;
+  store: ExtendedStore;
 }
 
 export function StoreCard({ store }: StoreCardProps) {
@@ -19,10 +24,15 @@ export function StoreCard({ store }: StoreCardProps) {
           src={store.banner}
           alt={store.name}
           fill
-          className="object-cover transition-transform duration-300 group-hover:scale-105"
+          className={`object-cover transition-transform duration-300 group-hover:scale-105 ${store.isOpen === false ? "grayscale" : ""}`}
           sizes="(max-width: 640px) 100vw, (max-width: 1024px) 50vw, 33vw"
         />
         <div className="absolute inset-0 bg-gradient-to-t from-slate-900 to-transparent" />
+        {store.isOpen === false && (
+          <div className="absolute right-2 top-2 rounded-lg bg-slate-900/80 px-2 py-1 text-xs font-medium text-muted-foreground">
+            Fechado
+          </div>
+        )}
       </div>
 
       {/* Content */}
