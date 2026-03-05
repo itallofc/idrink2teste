@@ -2,10 +2,11 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { Compass, Package, User, ShoppingCart } from "lucide-react";
+import { Compass, Package, User, ShoppingCart, BarChart3 } from "lucide-react";
 import { useCart } from "@/contexts/CartContext";
+import { useAuth } from "@/contexts/AuthContext";
 
-const navItems = [
+const userNavItems = [
   {
     href: "/home",
     label: "Explorar",
@@ -29,14 +30,36 @@ const navItems = [
   },
 ];
 
+const merchantNavItems = [
+  {
+    href: "/comerciante",
+    label: "Dashboard",
+    icon: BarChart3,
+  },
+  {
+    href: "/home",
+    label: "Marketplace",
+    icon: Compass,
+  },
+  {
+    href: "/perfil",
+    label: "Perfil",
+    icon: User,
+  },
+];
+
 export function BottomNav() {
   const pathname = usePathname();
   const { totalItems } = useCart();
+  const { isMerchant, isLoading } = useAuth();
 
-  // Don't show on onboarding
-  if (pathname === "/onboarding" || pathname === "/") {
+  // Don't show on onboarding or auth pages
+  if (pathname === "/onboarding" || pathname === "/" || pathname.startsWith("/auth")) {
     return null;
   }
+
+  // While loading, show user nav by default (prevents flash)
+  const navItems = !isLoading && isMerchant ? merchantNavItems : userNavItems;
 
   return (
     <nav className="fixed bottom-0 left-0 right-0 z-50 border-t border-border/50 bg-background/80 backdrop-blur-lg md:hidden">
@@ -44,7 +67,7 @@ export function BottomNav() {
         {navItems.map((item) => {
           const isActive = pathname === item.href || pathname.startsWith(item.href + "/");
           const Icon = item.icon;
-          const showBadge = item.showBadge && totalItems > 0;
+          const showBadge = "showBadge" in item && item.showBadge && totalItems > 0;
 
           return (
             <Link
