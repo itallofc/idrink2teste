@@ -243,6 +243,20 @@ export default function ComerciantePage() {
         await supabase.from("stores").insert(storeData);
       }
 
+      // Revalidate cache for the store and home pages
+      try {
+        await fetch("/api/revalidate", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            type: "store",
+            storeSlug: slug,
+          }),
+        });
+      } catch (e) {
+        console.error("Failed to revalidate:", e);
+      }
+
       await refreshStore();
       setSaveSuccess(true);
       setTimeout(() => setSaveSuccess(false), 3000);
@@ -271,10 +285,28 @@ export default function ComerciantePage() {
         updated_at: new Date().toISOString(),
       };
 
+      let productId = editingProduct?.id;
+      
       if (editingProduct) {
         await supabase.from("products").update(productData).eq("id", editingProduct.id);
       } else {
-        await supabase.from("products").insert(productData);
+        const { data } = await supabase.from("products").insert(productData).select("id").single();
+        productId = data?.id;
+      }
+
+      // Revalidate cache for the product and store pages
+      try {
+        await fetch("/api/revalidate", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            type: "product",
+            id: productId,
+            storeSlug: store.slug,
+          }),
+        });
+      } catch (e) {
+        console.error("Failed to revalidate:", e);
       }
 
       setProductForm({
