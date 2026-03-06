@@ -90,7 +90,6 @@ async function getProduct(id: string) {
       source: "static" as const,
     };
   }
-
   // If not found in static, fetch from database
   const supabase = await createClient();
 
