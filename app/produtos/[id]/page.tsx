@@ -1,5 +1,3 @@
-"use cache";
-
 import { createClient } from "@/lib/supabase/server";
 import { notFound } from "next/navigation";
 import Image from "next/image";
@@ -8,10 +6,7 @@ import { ArrowLeft, Store, Tag, ShoppingCart, Package } from "lucide-react";
 import { products as staticProducts } from "@/data/products";
 import { AddToCartButton } from "./add-to-cart-button";
 
-// Enable ISR with 60-second revalidation
 export const revalidate = 60;
-
-// Allow dynamic params for new products
 export const dynamicParams = true;
 
 interface ProductPageProps {
