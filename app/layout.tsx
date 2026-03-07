@@ -49,8 +49,12 @@ export default function RootLayout({
               <Navbar />
             </Suspense>
             <main className="min-h-screen pb-20 pt-16 md:pb-0">{children}</main>
-            <Footer />
-            <BottomNav />
+            <Suspense fallback={null}>
+              <Footer />
+            </Suspense>
+            <Suspense fallback={null}>
+              <BottomNav />
+            </Suspense>
           </CartProvider>
         </AuthProvider>
         <Analytics />
