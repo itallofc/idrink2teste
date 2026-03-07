@@ -1,3 +1,5 @@
+"use client";
+
 import { Logo } from "./Logo";
 
 export function Footer() {
